@@ -3,7 +3,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 let DATA = {};
 
 async function load() {
-  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker'];
+  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker', 'teams'];
   const res = await Promise.all(names.map(n => fetch(`api/${n}.json`).then(r => r.json())));
   names.forEach((n, i) => DATA[n] = res[i]);
   renderAll();
@@ -20,6 +20,17 @@ function renderAll() {
   $('#gwStats').textContent = `Avg score: ${m.avg_score}${m.high_score ? ' · Best: ' + m.high_score : ''}`;
   $('#genDate').textContent = m.generated;
   window.NEXT3_BY_CODE = (DATA.fplmeta && DATA.fplmeta.next3_by_code) || {};
+  // single team-form model shared by every tab (same numbers as the Fixtures ticker)
+  window.TF = Object.fromEntries((DATA.teams || []).map(t => [t.short, t]));
+  (DATA.players || []).forEach(p => {
+    const a = (window.TF[p.team] || {}).afx || [];
+    (p.next3 || []).forEach((f, i) => {
+      if (a[i] != null) { f.adjv = a[i]; f.afdr = Math.max(1, Math.min(5, Math.round(a[i]))); }
+    });
+  });
+  window.adjAvg3 = p => { const v = (p.next3 || []).map(f => f.adjv ?? f.fdr); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : 3; };
+  window.ownForm = p => (window.TF[p.team] || {}).tf ?? 1;
+  window.formRank = p => (window.TF[p.team] || {}).rank || 10;
   window.NEXT_BY_CODE = (DATA.fplmeta && DATA.fplmeta.fixtures_by_code) || window.NEXT3_BY_CODE;
   renderLeague(); renderTopScorers(); renderResults();
   renderRadar(); renderPlayers(); renderFixtures(); renderNews();
@@ -135,11 +146,15 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   // next-fixture maps per team code (3 and 5 lookahead)
   const flags = DATA.fplmeta.schedule_flags || {};
   const NEXT = window.NEXT_BY_CODE || {};
+  Object.entries(NEXT).forEach(([code, arr]) => {
+    const t = teamById[code]; const a = (window.TF[t && t.short] || {}).afx || [];
+    (arr || []).forEach((f, i) => { if (a[i] != null) { f.adjv = a[i]; f.afdr = Math.max(1, Math.min(5, Math.round(a[i]))); } });
+  });
 
   // ---- Enriched squad ----
   const posName = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' };
   const fdrMult = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
-  const avg = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + f.fdr, 0) / a.length : 3; };
+  const avg = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + (f.adjv ?? f.fdr), 0) / a.length : 3; };
 
   const squad = (picks ? picks.picks : []).map(r => {
     const e = elById[r.element];
@@ -149,7 +164,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
       a3: avg(fxs, 3), a5: avg(fxs, 5), flagged: !!(e && e.s && e.s !== 'a') };
   }).sort((a, b) => a.r.position - b.r.position);
   const ownedIds = new Set(squad.map(s => s.r.element));
-  const capScore = s => s.ep * (fdrMult[(s.fxs[0] || {}).fdr || 3] || 1) * (((s.fxs[0] || {}).ha) === 'H' ? 1.03 : 0.97);
+  const capScore = s => s.ep * (fdrMult[(s.fxs[0] || {}).afdr || (s.fxs[0] || {}).fdr || 3] || 1) * (((s.fxs[0] || {}).ha) === 'H' ? 1.03 : 0.97) * (0.9 + 0.1 * ownForm(s));
 
   // ---- Projected best XI (FPL bench rules: GK1 + DEF3 + MID3 + FWD2) ----
   const byPos = p => squad.filter(s => s.pos === p).sort((a, b) => b.ep - a.ep);
@@ -239,7 +254,8 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     if (!s.verdicts.some(v => v[0] === 'SELL?') || !s.e) continue;
     const funds = bank + s.e.c / 10;
     const best = DATA.players
-      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && avg(p.next3, 3) <= 2.9)
+      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && adjAvg3(p) <= 2.9)
+      .sort((a, b) => (b.ep_next + ownForm(b)) - (a.ep_next + ownForm(a)))
       .map(p => ({ p, sc: (p.ep_next || 0) + p.form * 0.5 }))
       .sort((a, b) => b.sc - a.sc)[0];
     if (best && best.p.ep_next - s.ep > 0.4) pairs.push({ out: s, in: best.p, delta: best.p.ep_next - s.ep, funds });
@@ -258,12 +274,13 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   const maxFund = bank + (benchVals[0] || 0) + 0.05;
   const planHtml = [0, 1, 2].map(i => {
     const g = firstGw + i;
-    const scored = squad.map(s => ({ s, f: s.fxs[i], sc: s.ep * (fdrMult[(s.fxs[i] || {}).fdr || 3] || 1) }))
+    const scored = squad.map(s => ({ s, f: s.fxs[i], sc: s.ep * (fdrMult[(s.fxs[i] || {}).afdr || (s.fxs[i] || {}).fdr || 3] || 1) * (0.9 + 0.1 * ownForm(s)) }))
       .filter(x => x.f);
     const holds = scored.filter(x => x.f.fdr <= 3).sort((a, b) => b.sc - a.sc).slice(0, 3);
     const risks = scored.filter(x => x.f.fdr >= 4).sort((a, b) => a.f.fdr - b.f.fdr).slice(0, 3);
     const tgt = DATA.players
-      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= maxFund && (p.next3[i] || {}).fdr <= 2)
+      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= maxFund && ((p.next3[i] || {}).afdr ?? (p.next3[i] || {}).fdr ?? 3) <= 2)
+      .sort((a, b) => (b.ep_next + ownForm(b)) - (a.ep_next + ownForm(a)))
       .sort((a, b) => ((b.form || 0) + (b.ep_next || 0)) - ((a.form || 0) + (a.ep_next || 0)))[0];
     return `<div class="advice"><b>GW${g}:</b>
       ${holds.length ? `<br>✅ <b>Hold/start:</b> ${holds.map(x => `${esc(x.s.e.n)} <span class="fdr f${x.f.fdr}">${x.f.fdr}</span>`).join(', ')}` : ''}
@@ -299,19 +316,19 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   // ---- Budget & targets ----
   $('#budgetHint').innerHTML = `Funds if you sell your priciest bench player: <b>£${maxFund.toFixed(1)}m</b> (bank £${bank.toFixed(1)}m). Targets below fit that slot and have kind next-3 fixtures.`;
 
-  const next3avg = (n3) => n3.length ? n3.reduce((s, f) => s + f.fdr, 0) / n3.length : 3;
+  const next3avg = (n3) => n3.length ? n3.reduce((s, f) => s + (f.adjv ?? f.fdr), 0) / n3.length : 3;
   const targets = DATA.players
     .filter(p => !ownedIds.has(p.id) && p.cost <= maxFund && p.mins >= 90 && (p.status === 'a'))
     .filter(p => next3avg(p.next3) <= 2.8)
-    .map(p => ({ p, avg: next3avg(p.next3), score: p.form * 2 + p.ep_next + (3 - next3avg(p.next3)) * 2 }))
+    .map(p => ({ p, avg: next3avg(p.next3), score: p.form * 2 + p.ep_next + (3 - next3avg(p.next3)) * 2 + ownForm(p) * 2 }))
     .sort((a, b) => b.score - a.score).slice(0, 8);
   $('#targetsList').innerHTML = targets.map(({ p, avg }, i) => `
     <div class="sig-card">
       <div class="rank">${i + 1}</div>
       <div class="sig-info">
-        <div class="sig-name">${esc(p.name)} ${posBadge(p.pos)} <span class="team-tag">${p.team} · £${p.cost}m · ${p.own}% owned</span></div>
+        <div class="sig-name">${esc(p.name)} ${posBadge(p.pos)} <span class="team-tag">${p.team} · £${p.cost}m · ${p.own}% owned · form #${formRank(p)}</span></div>
         <div class="sig-reasons">
-          <span class="reason">Next: ${p.next3.slice(0, 3).map(f => `${f.opp}(${f.ha})`).join(', ') || '—'} · avg FDR ${avg.toFixed(1)}</span>
+          <span class="reason">Next: ${p.next3.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" style="margin:0 2px">${f.afdr ?? f.fdr}</span>`).join(' ') || '—'} · adj FDR ${avg.toFixed(1)}</span>
           <span class="reason">Form ${p.form} · ep ${p.ep_next}</span>
         </div>
       </div>
@@ -489,21 +506,33 @@ function renderNews() {
 
 // ============ Wildcard Lab ============
 const avgN = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + f.fdr, 0) / a.length : 3; };
-const pScore = (p) => (p.form || 0) * 1.2 + (p.ep_next || 0) * 1.5 + (3 - avgN(p.next3, 3)) * 1.5 + (p.pos === 'DEF' ? Math.min(2, (p.cbit || 0) * 0.05) : 0);
+// same inputs as the Fixtures ticker: player form + expected points + form-adjusted FDR + own-team performance rank
+const pScore = (p) => (p.form || 0) * 1.2 + (p.ep_next || 0) * 1.5 + (3 - adjAvg3(p)) * 1.5 + ownForm(p) * 1.5 + (p.pos === 'DEF' ? Math.min(2, (p.cbit || 0) * 0.05) : 0);
 let WC = null;
 function buildWildcard() {
   const BUDGET = 100.0, need = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
   const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
   const byPos = {};
   for (const pos of ['GK', 'DEF', 'MID', 'FWD']) byPos[pos] = pool.filter(p => p.pos === pos).sort((a, b) => pScore(b) - pScore(a));
-  const pick = {}; for (const pos in need) pick[pos] = byPos[pos].slice(0, need[pos]);
+  const teamCount = () => { const c = {}; Object.values(pick).flat().forEach(p => c[p.team] = (c[p.team] || 0) + 1); return c; };
+  const pick = {};
+  for (const pos of ['GK', 'DEF', 'MID', 'FWD']) {
+    pick[pos] = []; const tc = teamCount();
+    for (const p of byPos[pos]) {
+      if (pick[pos].length >= need[pos]) break;
+      if ((tc[p.team] || 0) >= 3) continue; // FPL rule: max 3 per club
+      pick[pos].push(p); tc[p.team] = (tc[p.team] || 0) + 1;
+    }
+  }
   let spent = Object.values(pick).flat().reduce((s, p) => s + p.cost, 0);
   let guard = 0;
   while (spent > BUDGET && guard++ < 300) {
     let best = null;
+    const tc0 = teamCount();
     for (const pos in pick) for (const sel of pick[pos]) {
       for (const alt of byPos[pos]) {
         if (pick[pos].includes(alt) || alt.cost >= sel.cost) continue;
+        if (alt.team !== sel.team && (tc0[alt.team] || 0) >= 3) continue;
         const saving = sel.cost - alt.cost;
         const loss = Math.max(0.05, pScore(sel) - pScore(alt));
         const ratio = loss / saving;
@@ -521,7 +550,7 @@ function renderWildcard() {
   if (!WC) buildWildcard();
   const fdrM = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
   const all = Object.values(WC.pick).flat().sort((a, b) => pScore(b) - pScore(a));
-  $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · spend £${WC.spent.toFixed(1)}m of £100m`;
+  $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · spend £${WC.spent.toFixed(1)}m of £100m · built on the same performance model as the Fixtures ticker`;
   $('#wcSummary').innerHTML = `<div class="team-stats">
     <div class="tstat"><div class="v">£${WC.spent.toFixed(1)}m</div><div class="k">Total spend</div></div>
     <div class="tstat"><div class="v">${(100 - WC.spent).toFixed(1)}</div><div class="k">£m left in bank</div></div>
@@ -533,14 +562,14 @@ function renderWildcard() {
     <div class="squad-row">
       <span class="pos ${p.pos}">${p.pos}</span>
       <span class="nm">${esc(p.name)} <span class="team-tag">${p.team}</span></span>
-      <span class="fix">${(p.next3 || []).slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ')}</span>
+      <span class="fix">${(p.next3 || []).slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" style="margin:0 2px" title="form-adjusted ${f.adjv ?? f.fdr} (base FDR ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')} · team #${formRank(p)}</span>
       <span class="team-tag">form ${p.form}</span><b class="pts">${p.pts}</b><span class="team-tag">£${p.cost}m</span>
     </div>`).join('')).join('');
-  const caps = all.map(p => ({ p, c: (p.ep_next || 0) * (fdrM[((p.next3 || [])[0] || {}).fdr || 3] || 1) })).sort((a, b) => b.c - a.c);
+  const caps = all.map(p => ({ p, c: (p.ep_next || 0) * (fdrM[((p.next3 || [])[0] || {}).afdr ?? ((p.next3 || [])[0] || {}).fdr ?? 3] || 1) * (0.9 + 0.1 * ownForm(p)) })).sort((a, b) => b.c - a.c);
   $('#wcCaptain').innerHTML = caps.slice(0, 2).map((x, i) => `
     <div class="sig-card"><div class="rank">${i ? 'V' : 'C'}</div>
       <div class="sig-info"><div class="sig-name">${esc(x.p.name)} ${posBadge(x.p.pos)} <span class="team-tag">${x.p.team} · ${((x.p.next3 || [])[0] || {}).opp || '—'}(${((x.p.next3 || [])[0] || {}).ha || '?'})</span></div>
-      <div class="sig-meta">ep ${x.p.ep_next} · next FDR ${((x.p.next3 || [])[0] || {}).fdr || 3}</div></div>
+      <div class="sig-meta">ep ${x.p.ep_next} · adj FDR ${((x.p.next3 || [])[0] || {}).afdr ?? ((x.p.next3 || [])[0] || {}).fdr ?? 3} · team #${formRank(x.p)}</div></div>
       <div class="sig-pts"><div class="pts">${x.c.toFixed(1)}</div></div></div>`).join('');
   const ctx = window.TEAMCTX;
   if (ctx) {
@@ -560,7 +589,8 @@ function scout(p) {
   return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
   <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
   <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
-  <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}">${f.fdr}</span>`).join(' ')}</span><br>
+  <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" title="form-adjusted ${f.adjv ?? f.fdr} (base ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')}</span><br>
+  <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
 }
 function findPlayer(q) {
@@ -581,7 +611,7 @@ function askAI(q) {
     if (ctx) {
       const ranked = ctx.squad.map(s => ({ s, c: s.cap })).sort((a, b) => b.c - a.c).slice(0, 3);
       return `For <b>GW${ctx.picksGw + 1}</b>, your captain options ranked by fixture-adjusted projection:<br>` +
-        ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), FDR ${(x.s.fxs[0] || {}).fdr || 3}, ep ${x.s.ep.toFixed(1)} → score ${x.c.toFixed(1)}</span>`).join('') +
+        ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), adj FDR ${(x.s.fxs[0] || {}).afdr ?? (x.s.fxs[0] || {}).fdr ?? 3}, ep ${x.s.ep.toFixed(1)} → score ${x.c.toFixed(1)}</span>`).join('') +
         `<br><span class="mrow">Verdict: <b>${esc(ranked[0].s.e.n)}</b> is the standout${ranked[1] ? '; ' + esc(ranked[1].s.e.n) + ' the safe vice.' : '.'}</span>`;
     }
     return `Global captain picks this GW: <b>${DATA.captains.slice(0, 3).map(c => c.name).join(', ')}</b> — see the Captain & Prices tab for reasons.`;
@@ -600,25 +630,25 @@ function askAI(q) {
     const t = pl || (ctx ? ctx.squad.filter(s => s.verdicts.some(v => v[0] === 'SELL?')).sort((a, b) => a.ep - b.ep)[0] : null);
     const p = t && t.e ? DATA.players.find(x => x.name === t.e.n) : t;
     if (!p) return 'Tell me who you mean — e.g. "should I sell Thiago?"';
-    const bad = (p.xg_diff > 0.8) || ((p.next3 || []).length && avgN(p.next3, 3) >= 3.2) || p.price_dir === 'fall' || (p.status !== 'a');
-    return `${scout(p)}<br><span class="mrow">🤖 Verdict: ${bad ? '<b>Sell candidate</b> — ' + (p.status !== 'a' ? 'fitness risk.' : p.xg_diff > 0.8 ? 'riding luck on xG.' : 'fixtures/price turning away.') : '<b>Hold</b> — underlying numbers are fine; fixtures ' + (avgN(p.next3, 3) <= 2.8 ? 'are kind.' : 'are tough but the stats support him.')}</span>`;
+    const bad = (p.xg_diff > 0.8) || ((p.next3 || []).length && adjAvg3(p) >= 3.2) || p.price_dir === 'fall' || (p.status !== 'a') || formRank(p) >= 16;
+    return `${scout(p)}<br><span class="mrow">🤖 Verdict: ${bad ? '<b>Sell candidate</b> — ' + (p.status !== 'a' ? 'fitness risk.' : p.xg_diff > 0.8 ? 'riding luck on xG.' : formRank(p) >= 16 ? `his team ranks #${formRank(p)} for performance.` : 'fixtures/price turning away.') : '<b>Hold</b> — underlying numbers are fine; fixtures ' + (adjAvg3(p) <= 2.8 ? 'are kind.' : 'are tough but the stats support him.')}</span>`;
   }
   if (/(buy|bring in|transfer in|target|replace)/.test(Q)) {
     const posMatch = /(gk|def|mid|fwd|goalkeeper|defender|midfielder|forward)/.exec(Q);
     const under = /under (\d+(?:\.\d+)?)/.exec(Q);
     const posMap = { gk: 'GK', goalkeeper: 'GK', def: 'DEF', defender: 'DEF', mid: 'MID', midfielder: 'MID', fwd: 'FWD', forward: 'FWD' };
     const budget = ctx ? ctx.maxFund : (under ? parseFloat(under[1]) : 100);
-    let cands = DATA.players.filter(p => p.status === 'a' && p.mins >= 90 && p.cost <= budget && avgN(p.next3, 3) <= 2.9);
+    let cands = DATA.players.filter(p => p.status === 'a' && p.mins >= 90 && p.cost <= budget && adjAvg3(p) <= 2.9)
+      .sort((a, b) => (b.ep_next + (b.form || 0) * 0.5 + ownForm(b)) - (a.ep_next + (a.form || 0) * 0.5 + ownForm(a)));
     if (posMatch) cands = cands.filter(p => p.pos === posMap[posMatch[1]]);
     if (ctx) cands = cands.filter(p => !ctx.squad.some(s => s.e && s.e.n === p.name));
-    cands.sort((a, b) => ((b.ep_next || 0) + b.form * 0.5) - ((a.ep_next || 0) + a.form * 0.5));
     const top = cands.slice(0, 3);
     return top.length ? `Best value in budget (£${budget.toFixed(1)}m)${posMatch ? ' at ' + posMap[posMatch[1]] : ''}:<br>` + top.map(p => `<span class="mrow">• ${scout(p)}</span>`).join('') : 'Nothing affordable with good fixtures — consider selling a bench earner first to raise funds.';
   }
   if (/bench/.test(Q)) {
     if (!ctx) return 'Load your team first (My Team tab) so I can rank your bench.';
     const b = ctx.squad.slice().sort((a, b2) => b2.cap - a.cap).slice(-4);
-    return `For GW${ctx.picksGw + 1}, your weakest projections (bench them):<br>` + b.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${((s.fxs[0] || {}).opp) || '—'}(${(s.fxs[0] || {}).ha || '?'} FDR ${(s.fxs[0] || {}).fdr || 3}), ep ${s.ep.toFixed(1)}</span>`).join('') + `<br><span class="mrow">Bench waste if all sit: ${b.reduce((s, x) => s + x.ep, 0).toFixed(1)} pts.</span>`;
+    return `For GW${ctx.picksGw + 1}, your weakest projections (bench them):<br>` + b.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${((s.fxs[0] || {}).opp) || '—'}(${(s.fxs[0] || {}).ha || '?'} adj FDR ${(s.fxs[0] || {}).afdr ?? (s.fxs[0] || {}).fdr ?? 3}), ep ${s.ep.toFixed(1)}</span>`).join('') + `<br><span class="mrow">Bench waste if all sit: ${b.reduce((s, x) => s + x.ep, 0).toFixed(1)} pts.</span>`;
   }
   if (/(injur|fit|doubt|hurt|return)/.test(Q)) {
     const flagged = ctx ? ctx.squad.filter(s => s.flagged) : [];
