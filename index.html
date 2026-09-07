@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPL Insight Hub — 2026/27</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">⚽</span>
+    <div>
+      <h1>FPL Insight Hub</h1>
+      <p class="sub">2026/27 · built on open data from
+        <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">FPL-Core-Insights</a></p>
+    </div>
+  </div>
+  <div class="gwbox">
+    <div class="gw-label" id="gwLabel">—</div>
+    <div class="gw-deadline" id="gwDeadline">—</div>
+    <div class="gw-stats" id="gwStats">—</div>
+  </div>
+</header>
+
+<nav>
+  <button class="tab active" data-tab="overview">Overview</button>
+  <button class="tab" data-tab="myteam">My Team</button>
+  <button class="tab" data-tab="radar">Transfer Radar</button>
+  <button class="tab" data-tab="captain">Captain &amp; Prices</button>
+  <button class="tab" data-tab="players">Players</button>
+  <button class="tab" data-tab="fixtures">Fixtures</button>
+  <button class="tab" data-tab="injuries">Injuries &amp; News</button>
+</nav>
+
+<main>
+  <section id="overview" class="panel active">
+    <div class="grid3">
+      <div class="card">
+        <h2>Premier League Table</h2>
+        <table id="leagueTable" class="data compact"></table>
+      </div>
+      <div class="card">
+        <h2>Top FPL Scorers</h2>
+        <table id="topScorers" class="data compact"></table>
+      </div>
+      <div class="card">
+        <h2>Results <span class="muted" id="resultsGW"></span></h2>
+        <div id="resultsList" class="results-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="myteam" class="panel">
+    <div class="card entry-card">
+      <h2>Your FPL Team</h2>
+      <p class="hint">Enter your FPL Team ID (the number in your team URL: fantasy.premierleague.com/entry/<b>1234567</b>/…)</p>
+      <div class="entry-row">
+        <input id="teamId" type="number" min="1" placeholder="e.g. 1234567">
+        <button id="loadTeam" class="btn">Load My Team</button>
+        <span id="teamStatus" class="muted"></span>
+      </div>
+      <div id="teamSummary"></div>
+    </div>
+    <div id="teamDetail" style="display:none">
+      <div class="grid2" style="margin-top:16px">
+        <div class="card"><h2 class="green">Your Squad &amp; Next Fixtures</h2><div id="squadList"></div></div>
+        <div class="card"><h2>Personalised Transfer Targets</h2>
+          <p class="hint" id="budgetHint"></p>
+          <div id="targetsList"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px"><h2>Chip Strategy</h2><div id="chipAdvice"></div></div>
+    </div>
+  </section>
+
+  <section id="captain" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <h2>Captain Picks <span class="muted">— next GW, ep adjusted for fixture &amp; penalties</span></h2>
+        <div id="captainList"></div>
+      </div>
+      <div>
+        <div class="card"><h2 class="green">▲ Predicted Price Rises</h2>
+          <p class="hint">From official FPL transfer momentum + projection likelihood.</p>
+          <table id="risersTable" class="data compact"></table></div>
+        <div class="card" style="margin-top:16px"><h2 class="red">▼ Predicted Price Falls</h2>
+          <table id="fallersTable" class="data compact"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="radar" class="panel">
+    <p class="hint">Heuristic signals computed from the open dataset — xG regression, transfer momentum, differentials. Not financial advice 😉</p>
+    <div class="grid2">
+      <div class="card">
+        <h2 class="green">▲ Buy Signals</h2>
+        <div id="buyList"></div>
+      </div>
+      <div class="card">
+        <h2 class="red">▼ Sell Signals</h2>
+        <div id="sellList"></div>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card"><h2>Most Transferred In (this GW)</h2><table id="mostIn" class="data compact"></table></div>
+      <div class="card"><h2>Most Transferred Out (this GW)</h2><table id="mostOut" class="data compact"></table></div>
+    </div>
+  </section>
+
+  <section id="players" class="panel">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search player…">
+      <div class="chips" id="posChips">
+        <button class="chip active" data-pos="">All</button>
+        <button class="chip" data-pos="GK">GK</button>
+        <button class="chip" data-pos="DEF">DEF</button>
+        <button class="chip" data-pos="MID">MID</button>
+        <button class="chip" data-pos="FWD">FWD</button>
+      </div>
+      <label class="minmin"><input type="checkbox" id="min90"> Min 90' played</label>
+      <span class="muted" id="playerCount"></span>
+    </div>
+    <table id="playerTable" class="data"></table>
+  </section>
+
+  <section id="fixtures" class="panel">
+    <p class="hint">Fixture Difficulty (FDR): <span class="fdr f1">1 easy</span> <span class="fdr f2">2</span> <span class="fdr f3">3</span> <span class="fdr f4">4</span> <span class="fdr f5">5 hard</span> — based on opponent strength rating.</p>
+    <div id="fixtureBlocks"></div>
+  </section>
+
+  <section id="injuries" class="panel">
+    <table id="newsTable" class="data"></table>
+  </section>
+</main>
+
+<footer>
+  Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
