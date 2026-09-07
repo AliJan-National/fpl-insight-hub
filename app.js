@@ -3,7 +3,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 let DATA = {};
 
 async function load() {
-  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta'];
+  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker'];
   const res = await Promise.all(names.map(n => fetch(`api/${n}.json`).then(r => r.json())));
   names.forEach((n, i) => DATA[n] = res[i]);
   renderAll();
@@ -452,16 +452,26 @@ function renderPlayers() {
 }
 
 function renderFixtures() {
-  $('#fixtureBlocks').innerHTML = Object.entries(DATA.fixtures).map(([gw, rows]) => `
-    <div class="fix-block"><h3>${gw}</h3><div class="fix-grid">
-      ${rows.map(f => `
-        <div class="fix-row">
-          <span class="fdr f${f.fdr_home}" title="difficulty for ${f.home}">${f.fdr_home}</span>
-          <b>${f.home}</b><span class="vs">vs</span><b>${f.away}</b>
-          <span class="fdr f${f.fdr_away}" title="difficulty for ${f.away}">${f.fdr_away}</span>
-          <span class="ko">${f.ko.slice(5)}</span>
-        </div>`).join('')}
-    </div></div>`).join('');
+  const t = DATA.ticker;
+  const past = t.past_gws, fut = t.future_gws;
+  let html = '<tr><th>#</th><th>Team</th>' +
+    past.map(g => `<th class="tk-h">GW${g}</th>`).join('') +
+    fut.map(g => `<th class="tk-h">GW${g}</th>`).join('') + '</tr>';
+  t.rows.forEach(r => {
+    html += `<tr><td class="num">${r.rank}</td>
+      <td class="tk-team"><span class="rk">${r.rank}</span><b>${esc(r.short)}</b>
+        <span class="tk-opp" title="pts/game ${r.ppg} · xG diff/game ${r.xgd} · shots diff ${r.shotd}">${r.ppg}ppg ${r.xgd > 0 ? '+' : ''}${r.xgd}xG</span></td>` +
+      r.cells.map((c, i) => {
+        const gwn = i < past.length ? past[i] : fut[i - past.length];
+        if (!c) return `<td class="tk tk-none" title="GW${gwn}: no match">—</td>`;
+        if (c.res) return `<td class="tk res-${c.res}" title="GW${gwn} vs ${c.opp} (${c.ha}) · xG ${c.xg || 'n/a'} · shots ${c.sh}">
+          <b>${c.sc}</b><span class="tk-opp">${c.opp}</span></td>`;
+        return `<td class="tk" title="GW${gwn} vs ${c.opp} (${c.ha}) · base FDR ${c.fdr} · form-adjusted ${c.adj}">
+          <span class="fdr f${c.adji}">${c.adji}</span> <span class="tk-opp">${c.opp}${c.ha}</span>
+          <span class="adjv">${c.adj.toFixed(1)}</span></td>`;
+      }).join('') + '</tr>';
+  });
+  $('#tickerTable').innerHTML = html;
 }
 
 function renderNews() {

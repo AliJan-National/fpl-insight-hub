@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=4">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <header>
@@ -183,8 +183,9 @@
   </section>
 
   <section id="fixtures" class="panel">
-    <p class="hint">Fixture Difficulty (FDR): <span class="fdr f1">1 easy</span> <span class="fdr f2">2</span> <span class="fdr f3">3</span> <span class="fdr f4">4</span> <span class="fdr f5">5 hard</span> — based on opponent strength rating.</p>
-    <div id="fixtureBlocks"></div>
+    <p class="hint">🏆 Teams ranked by true performance: <b>points/game + xG difference + shot difference</b> over GW1–3 (best on top, worst at bottom).
+      Past gameweeks show <b>results</b> (hover a cell for xG &amp; shots); upcoming gameweeks show <b>form-adjusted difficulty</b> — the official FDR shifted by the opponent's current form.</p>
+    <div class="ticker-wrap"><table id="tickerTable" class="data"></table></div>
   </section>
 
   <section id="injuries" class="panel">
@@ -195,6 +196,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

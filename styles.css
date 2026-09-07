@@ -176,6 +176,21 @@ footer { text-align: center; color: var(--muted); font-size: 11.5px; padding: 24
 .swing-bad { color: var(--red); font-weight: 700; }
 .fx-gw { font-style: normal; color: var(--muted); font-size: 9px; vertical-align: super; margin-right: 1px; }
 
+/* season ticker */
+.ticker-wrap { overflow-x: auto; }
+#tickerTable { min-width: 1150px; }
+#tickerTable th.tk-h { text-align: center; }
+#tickerTable td.tk { text-align: center; padding: 6px 4px; font-size: 11.5px; min-width: 76px; }
+#tickerTable td.tk b { display: block; font-size: 12px; }
+.tk-opp { color: var(--muted); font-size: 10px; }
+.res-W { background: rgba(0,255,133,.14) !important; }
+.res-D { background: rgba(255,201,77,.10) !important; }
+.res-L { background: rgba(255,85,117,.13) !important; }
+.tk-none { color: var(--muted); }
+#tickerTable td.tk-team { white-space: nowrap; }
+#tickerTable td.tk-team .rk { color: var(--muted); font-size: 11px; margin-right: 6px; }
+.adjv { color: var(--muted); font-size: 9px; display: block; }
+
 /* chat */
 .chat-card { max-width: 900px; }
 .chat-log { max-height: 460px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; margin-bottom: 12px; }
