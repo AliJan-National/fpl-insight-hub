@@ -155,7 +155,9 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   const byPos = p => squad.filter(s => s.pos === p).sort((a, b) => b.ep - a.ep);
   const xi = [...byPos(1).slice(0, 1), ...byPos(2).slice(0, 3), ...byPos(3).slice(0, 3), ...byPos(4).slice(0, 2)];
   const xiSet = new Set(xi.map(s => s.r.element));
-  const capPick = [...xi].sort((a, b) => capScore(b) - capScore(a))[0];
+  const capRank = [...xi].sort((a, b) => capScore(b) - capScore(a));
+  const capPick = capRank[0];
+  const capAlt = capRank[1];
   const proj = xi.reduce((s, p) => s + p.ep, 0) + (capPick ? capPick.ep : 0);
   const bench = squad.filter(s => !xiSet.has(s.r.element));
   const benchWaste = bench.reduce((s, p) => s + p.ep, 0);
@@ -183,40 +185,52 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
       <div class="xi-stats">
         <div class="tstat"><div class="v">${proj.toFixed(1)}</div><div class="k">Projected pts</div></div>
         <div class="tstat"><div class="v">${benchWaste.toFixed(1)}</div><div class="k">Bench waste</div></div>
-        <div class="tstat"><div class="v">${capPick ? esc(capPick.e.n) : '—'}</div><div class="k">Suggested captain</div></div>
+        <div class="tstat"><div class="v">${capPick ? esc(capPick.e.n) : '—'}</div><div class="k">Suggested captain${capAlt ? ' · alt: ' + esc(capAlt.e.n) : ''}</div></div>
         <div class="tstat"><div class="v">${userCap && userCap.e ? esc(userCap.e.n) : '—'}</div><div class="k">Your GW${picksGw} captain</div></div>
       </div>
       <div class="xi-pitch">${xiCells}</div>
     </div>`;
 
-  // ---- Squad list with verdicts ----
+  // ---- Squad list with verdicts (fixtures labelled by gameweek) ----
+  const firstGw = picksGw + 1;
   const squadHtml = squad.map(s => {
     if (!s.e) return '';
-    const fxTxt = s.fxs.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ');
+    const fxTxt = s.fxs.slice(0, 3).map((f, i) =>
+      `<span title="GW${firstGw + i}: ${f.opp} (${f.ha === 'H' ? 'Home' : 'Away'})">${f.opp}(${f.ha})<i class="fx-gw">${f.gw}</i><span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span></span>`).join(' ');
     const capt = s.r.is_captain ? '<span class="badge-c">C</span>' : s.r.is_vice_captain ? '<span class="badge-v">V</span>' : '';
-    const gwPts = (s.r.stats && s.r.stats.total_points) ?? '—';
     const vd = s.verdicts.map(([t, c]) => `<span class="vd ${c}">${t}</span>`).join('');
     return `<div class="squad-row ${s.r.is_captain ? 'captain' : ''}">
       ${capt}<span class="pos ${posName[s.pos]}">${posName[s.pos]}</span>
       <span class="nm">${esc(s.e.n)}${s.flagged ? ' ⚠️' : ''}${vd} <span class="team-tag">${s.t ? s.t.short : ''}</span></span>
       <span class="fix">${fxTxt}</span>
       <span class="team-tag" title="projected next GW">ep ${s.ep.toFixed(1)}</span>
-      <b class="pts">${gwPts}</b><span class="team-tag">£${(s.e.c / 10).toFixed(1)}</span>
+      <b class="pts">${s.e.pts ?? '—'}</b><span class="team-tag">£${(s.e.c / 10).toFixed(1)}</span>
     </div>`;
   }).join('');
-  $('#squadList').innerHTML = squadHtml || '<p class="hint">No picks published yet.</p>';
+  $('#squadList').innerHTML =
+    `<p class="hint">Fixture chips show <b>GW${firstGw}–${firstGw + 2}</b> (small number = gameweek). Right column: season points &amp; price.</p>` +
+    (squadHtml || '<p class="hint">No picks published yet.</p>');
 
-  // ---- Captaincy in squad ----
-  $('#capSquadList').innerHTML = [...squad].sort((a, b) => b.cap - a.cap).slice(0, 3).map((s, i) => `
+  // ---- Captaincy in squad (form + fixture reasons) ----
+  $('#capSquadList').innerHTML = [...squad].sort((a, b) => b.cap - a.cap).slice(0, 3).map((s, i) => {
+    const f0 = s.fxs[0] || {};
+    const frm = s.e.form || 0;
+    const reasons = [];
+    if ((f0.fdr || 3) <= 2) reasons.push(`Easy GW${f0.gw}: ${f0.opp}(${f0.ha})`);
+    else if ((f0.fdr || 3) >= 4) reasons.push(`Tough GW${f0.gw}: ${f0.opp}(${f0.ha})`);
+    if (frm >= 7) reasons.push(`In form (${frm})`);
+    if (s.ep >= 7) reasons.push(`High ep (${s.ep.toFixed(1)})`);
+    return `
     <div class="sig-card">
       <div class="rank">${i + 1}</div>
       <div class="sig-info">
         <div class="sig-name">${esc(s.e.n)} ${posBadge(posName[s.pos])}
-          <span class="team-tag">vs ${(s.fxs[0] || {}).opp || '—'}(${(s.fxs[0] || {}).ha || '?'}) <span class="fdr f${(s.fxs[0] || {}).fdr || 3}">${(s.fxs[0] || {}).fdr || 3}</span></span></div>
-        <div class="sig-meta">ep ${s.ep.toFixed(1)} · form-driven fixture score</div>
+          <span class="team-tag">GW${f0.gw || firstGw}: ${f0.opp || '—'}(${f0.ha || '?'}) <span class="fdr f${f0.fdr || 3}">${f0.fdr || 3}</span></span></div>
+        <div class="sig-reasons">${reasons.map(r => `<span class="reason">${esc(r)}</span>`).join('') || `<span class="reason">form ${frm}</span>`}</div>
       </div>
-      <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">cap score</div></div>
-    </div>`).join('') || '<p class="hint">—</p>';
+      <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">cap score<br>form ${frm}</div></div>
+    </div>`;
+  }).join('') || '<p class="hint">—</p>';
 
   // ---- Suggested transfer pairs ----
   const bank = (eh.bank ?? 0) / 10;
@@ -228,16 +242,36 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
       .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && avg(p.next3, 3) <= 2.9)
       .map(p => ({ p, sc: (p.ep_next || 0) + p.form * 0.5 }))
       .sort((a, b) => b.sc - a.sc)[0];
-    if (best && best.p.ep_next - s.ep > 0.4) pairs.push({ out: s, in: best.p, delta: best.p.ep_next - s.ep });
+    if (best && best.p.ep_next - s.ep > 0.4) pairs.push({ out: s, in: best.p, delta: best.p.ep_next - s.ep, funds });
   }
   pairs.sort((a, b) => b.delta - a.delta);
   $('#pairsList').innerHTML = pairs.slice(0, 3).map(pr => `
     <div class="pair-card">
-      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · ep ${pr.out.ep.toFixed(1)} · ${pr.out.verdicts.map(v => v[0]).join(' ')}</span></div>
+      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · £${(pr.out.e.c / 10).toFixed(1)}m · ep ${pr.out.ep.toFixed(1)}</span></div>
       <span class="arrow">→</span>
       <div class="who"><b class="up">${esc(pr.in.name)}</b> <span class="team-tag">${pr.in.team} · £${pr.in.cost}m · ep ${pr.in.ep_next}</span></div>
-      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">proj Δ / GW</div></div>
-    </div>`).join('') || '<p class="hint">No clearly positive moves right now — holding is fine.</p>';
+      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">Δ/GW · funds £${pr.funds.toFixed(1)}m ✓</div></div>
+    </div>`).join('') || '<p class="hint">No affordable, clearly positive moves right now — holding is fine.</p>';
+
+  // ---- GW-by-GW game plan (hold / bench-sell / buy) ----
+  const benchVals = bench.map(s => (s.e ? s.e.c / 10 : 0)).sort((a, b) => b - a);
+  const maxFund = bank + (benchVals[0] || 0) + 0.05;
+  const planHtml = [0, 1, 2].map(i => {
+    const g = firstGw + i;
+    const scored = squad.map(s => ({ s, f: s.fxs[i], sc: s.ep * (fdrMult[(s.fxs[i] || {}).fdr || 3] || 1) }))
+      .filter(x => x.f);
+    const holds = scored.filter(x => x.f.fdr <= 3).sort((a, b) => b.sc - a.sc).slice(0, 3);
+    const risks = scored.filter(x => x.f.fdr >= 4).sort((a, b) => a.f.fdr - b.f.fdr).slice(0, 3);
+    const tgt = DATA.players
+      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= maxFund && (p.next3[i] || {}).fdr <= 2)
+      .sort((a, b) => ((b.form || 0) + (b.ep_next || 0)) - ((a.form || 0) + (a.ep_next || 0)))[0];
+    return `<div class="advice"><b>GW${g}:</b>
+      ${holds.length ? `<br>✅ <b>Hold/start:</b> ${holds.map(x => `${esc(x.s.e.n)} <span class="fdr f${x.f.fdr}">${x.f.fdr}</span>`).join(', ')}` : ''}
+      ${risks.length ? `<br>🔻 <b>Bench/sell:</b> ${risks.map(x => `${esc(x.s.e.n)} <span class="fdr f${x.f.fdr}">${x.f.fdr}</span> ${x.f.opp}(${x.f.ha})`).join(', ')}` : ''}
+      ${tgt ? `<br>🛒 <b>Buy option (≤£${maxFund.toFixed(1)}m):</b> ${esc(tgt.name)} (${tgt.team}, £${tgt.cost}m) — ${ (tgt.next3[i] || {}).opp }(${(tgt.next3[i] || {}).ha}) <span class="fdr f${(tgt.next3[i] || {}).fdr}">${(tgt.next3[i] || {}).fdr}</span>` : '<br>🛒 No affordable buy with easy fixtures this GW.'}
+    </div>`;
+  }).join('');
+  $('#gamePlan').innerHTML = `<p class="hint">One free transfer per GW. Budget for buys: £${maxFund.toFixed(1)}m (bank + priciest bench sale).</p>` + planHtml;
 
   // ---- Fixture swing table ----
   const groups = {};
@@ -248,7 +282,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   });
   const swingRows = Object.values(groups).sort((a, b) => a.a5 - b.a5).map(g => {
     const cls = g.a5 <= 2.2 ? 'swing-good' : g.a5 <= 3 ? 'swing-mid' : 'swing-bad';
-    const fx = g.fxs.slice(0, 5).map(f => `<span class="fdr f${f.fdr}" style="margin:0 1px">${f.fdr}</span>`).join('');
+    const fx = g.fxs.slice(0, 5).map(f => `<span class="fx-gw">${f.gw}</span><span class="fdr f${f.fdr}" style="margin:0 1px">${f.fdr}</span>`).join(' ');
     return `<tr><td><b>${g.short}</b></td><td style="white-space:normal">${g.names.join(', ')}</td>
       <td>${fx}</td><td class="num ${cls}">${g.a5.toFixed(1)}</td></tr>`;
   }).join('');
@@ -263,8 +297,6 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     || '<p class="hint">No transfers yet this season.</p>';
 
   // ---- Budget & targets ----
-  const benchVals = bench.map(s => (s.e ? s.e.c / 10 : 0)).sort((a, b) => b - a);
-  const maxFund = bank + (benchVals[0] || 0) + 0.05;
   $('#budgetHint').innerHTML = `Funds if you sell your priciest bench player: <b>£${maxFund.toFixed(1)}m</b> (bank £${bank.toFixed(1)}m). Targets below fit that slot and have kind next-3 fixtures.`;
 
   const next3avg = (n3) => n3.length ? n3.reduce((s, f) => s + f.fdr, 0) / n3.length : 3;
