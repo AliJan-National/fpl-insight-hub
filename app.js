@@ -20,6 +20,7 @@ function renderAll() {
   $('#gwStats').textContent = `Avg score: ${m.avg_score}${m.high_score ? ' · Best: ' + m.high_score : ''}`;
   $('#genDate').textContent = m.generated;
   window.NEXT3_BY_CODE = (DATA.fplmeta && DATA.fplmeta.next3_by_code) || {};
+  window.NEXT_BY_CODE = (DATA.fplmeta && DATA.fplmeta.fixtures_by_code) || window.NEXT3_BY_CODE;
   renderLeague(); renderTopScorers(); renderResults();
   renderRadar(); renderPlayers(); renderFixtures(); renderNews();
   renderCaptains(); renderPrices();
@@ -131,34 +132,138 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
       <div class="tstat"><div class="v">GW${picksGw}</div><div class="k">Latest picks</div></div>
     </div>`;
 
-  // next-fixture map per team code from our enriched players (first of next3)
+  // next-fixture maps per team code (3 and 5 lookahead)
   const flags = DATA.fplmeta.schedule_flags || {};
+  const NEXT = window.NEXT_BY_CODE || {};
 
-  // ---- Squad ----
+  // ---- Enriched squad ----
   const posName = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' };
-  const squadRows = (picks ? picks.picks : []).slice().sort((a, b) => a.position - b.position);
-  const ownedIds = new Set(squadRows.map(r => r.element));
-  const squadHtml = squadRows.map(r => {
-    const e = elById[r.element]; if (!e) return '';
-    const t = teamById[e.t];
-    const code = t ? t.code : null;
-    const nf = (window.NEXT3_BY_CODE || {})[code] || [];
-    const fxTxt = nf.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ');
-    const capt = r.is_captain ? '<span class="badge-c">C</span>' : r.is_vice_captain ? '<span class="badge-v">V</span>' : '';
-    const st = e.s && e.s !== 'a' ? ' ⚠️' : '';
-    const gwPts = (r.stats && r.stats.total_points) ?? '—';
-    return `<div class="squad-row ${r.is_captain ? 'captain' : ''}">
-      ${capt}<span class="pos ${posName[e.et]}">${posName[e.et]}</span>
-      <span class="nm">${esc(e.n)}${st} <span class="team-tag">${t ? t.short : ''}</span></span>
+  const fdrMult = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
+  const avg = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + f.fdr, 0) / a.length : 3; };
+
+  const squad = (picks ? picks.picks : []).map(r => {
+    const e = elById[r.element];
+    const t = e ? teamById[e.t] : null;
+    const fxs = t ? (NEXT[t.code] || []) : [];
+    return { r, e, t, fxs, pos: e ? e.et : 2, ep: e ? (e.ep || 0) : 0,
+      a3: avg(fxs, 3), a5: avg(fxs, 5), flagged: !!(e && e.s && e.s !== 'a') };
+  }).sort((a, b) => a.r.position - b.r.position);
+  const ownedIds = new Set(squad.map(s => s.r.element));
+  const capScore = s => s.ep * (fdrMult[(s.fxs[0] || {}).fdr || 3] || 1) * (((s.fxs[0] || {}).ha) === 'H' ? 1.03 : 0.97);
+
+  // ---- Projected best XI (FPL bench rules: GK1 + DEF3 + MID3 + FWD2) ----
+  const byPos = p => squad.filter(s => s.pos === p).sort((a, b) => b.ep - a.ep);
+  const xi = [...byPos(1).slice(0, 1), ...byPos(2).slice(0, 3), ...byPos(3).slice(0, 3), ...byPos(4).slice(0, 2)];
+  const xiSet = new Set(xi.map(s => s.r.element));
+  const capPick = [...xi].sort((a, b) => capScore(b) - capScore(a))[0];
+  const proj = xi.reduce((s, p) => s + p.ep, 0) + (capPick ? capPick.ep : 0);
+  const bench = squad.filter(s => !xiSet.has(s.r.element));
+  const benchWaste = bench.reduce((s, p) => s + p.ep, 0);
+  const userCap = squad.find(s => s.r.is_captain);
+  const capTop3 = new Set([...squad].sort((a, b) => capScore(b) - capScore(a)).slice(0, 3).map(s => s.r.element));
+
+  squad.forEach(s => {
+    s.cap = capScore(s);
+    const v = [];
+    if (s.flagged) v.push(['⚠ FLAG', 'vd-sell']);
+    v.push(xiSet.has(s.r.element) ? ['START', 'vd-start'] : ['BENCH', 'vd-bench']);
+    if (capTop3.has(s.r.element) && !s.flagged) v.push(['C OPT', 'vd-cap']);
+    if ((!xiSet.has(s.r.element) && s.ep < 1.6) || s.a3 >= 3.4 || s.flagged) v.push(['SELL?', 'vd-sell']);
+    s.verdicts = v;
+  });
+
+  // ---- XI summary ----
+  const xiCells = [...byPos(1).slice(0, 1), ...byPos(2).slice(0, 3), ...byPos(3).slice(0, 3), ...byPos(4).slice(0, 2)]
+    .map(s => `<div class="xi-cell ${capPick && s.r.element === capPick.r.element ? 'capt' : ''}">
+      <div>${esc(s.e ? s.e.n : '?')}</div><div class="ep">${s.ep.toFixed(1)}</div>
+      <div class="fn">${posName[s.pos]} · ${(s.fxs[0] || {}).opp || '—'}${(s.fxs[0] || {}).ha === 'H' ? '(H)' : '(A)'}</div>
+    </div>`).join('');
+  $('#xiSummary').innerHTML = `
+    <div class="xi-wrap">
+      <div class="xi-stats">
+        <div class="tstat"><div class="v">${proj.toFixed(1)}</div><div class="k">Projected pts</div></div>
+        <div class="tstat"><div class="v">${benchWaste.toFixed(1)}</div><div class="k">Bench waste</div></div>
+        <div class="tstat"><div class="v">${capPick ? esc(capPick.e.n) : '—'}</div><div class="k">Suggested captain</div></div>
+        <div class="tstat"><div class="v">${userCap && userCap.e ? esc(userCap.e.n) : '—'}</div><div class="k">Your GW${picksGw} captain</div></div>
+      </div>
+      <div class="xi-pitch">${xiCells}</div>
+    </div>`;
+
+  // ---- Squad list with verdicts ----
+  const squadHtml = squad.map(s => {
+    if (!s.e) return '';
+    const fxTxt = s.fxs.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ');
+    const capt = s.r.is_captain ? '<span class="badge-c">C</span>' : s.r.is_vice_captain ? '<span class="badge-v">V</span>' : '';
+    const gwPts = (s.r.stats && s.r.stats.total_points) ?? '—';
+    const vd = s.verdicts.map(([t, c]) => `<span class="vd ${c}">${t}</span>`).join('');
+    return `<div class="squad-row ${s.r.is_captain ? 'captain' : ''}">
+      ${capt}<span class="pos ${posName[s.pos]}">${posName[s.pos]}</span>
+      <span class="nm">${esc(s.e.n)}${s.flagged ? ' ⚠️' : ''}${vd} <span class="team-tag">${s.t ? s.t.short : ''}</span></span>
       <span class="fix">${fxTxt}</span>
-      <b class="pts">${gwPts}</b><span class="team-tag">£${(e.c / 10).toFixed(1)}</span>
+      <span class="team-tag" title="projected next GW">ep ${s.ep.toFixed(1)}</span>
+      <b class="pts">${gwPts}</b><span class="team-tag">£${(s.e.c / 10).toFixed(1)}</span>
     </div>`;
   }).join('');
   $('#squadList').innerHTML = squadHtml || '<p class="hint">No picks published yet.</p>';
 
-  // ---- Budget & targets ----
+  // ---- Captaincy in squad ----
+  $('#capSquadList').innerHTML = [...squad].sort((a, b) => b.cap - a.cap).slice(0, 3).map((s, i) => `
+    <div class="sig-card">
+      <div class="rank">${i + 1}</div>
+      <div class="sig-info">
+        <div class="sig-name">${esc(s.e.n)} ${posBadge(posName[s.pos])}
+          <span class="team-tag">vs ${(s.fxs[0] || {}).opp || '—'}(${(s.fxs[0] || {}).ha || '?'}) <span class="fdr f${(s.fxs[0] || {}).fdr || 3}">${(s.fxs[0] || {}).fdr || 3}</span></span></div>
+        <div class="sig-meta">ep ${s.ep.toFixed(1)} · form-driven fixture score</div>
+      </div>
+      <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">cap score</div></div>
+    </div>`).join('') || '<p class="hint">—</p>';
+
+  // ---- Suggested transfer pairs ----
   const bank = (eh.bank ?? 0) / 10;
-  const benchVals = squadRows.slice(11).map(r => (elById[r.element]?.now_cost ?? 0) / 10).sort((a, b) => b - a);
+  const pairs = [];
+  for (const s of squad) {
+    if (!s.verdicts.some(v => v[0] === 'SELL?') || !s.e) continue;
+    const funds = bank + s.e.c / 10;
+    const best = DATA.players
+      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && avg(p.next3, 3) <= 2.9)
+      .map(p => ({ p, sc: (p.ep_next || 0) + p.form * 0.5 }))
+      .sort((a, b) => b.sc - a.sc)[0];
+    if (best && best.p.ep_next - s.ep > 0.4) pairs.push({ out: s, in: best.p, delta: best.p.ep_next - s.ep });
+  }
+  pairs.sort((a, b) => b.delta - a.delta);
+  $('#pairsList').innerHTML = pairs.slice(0, 3).map(pr => `
+    <div class="pair-card">
+      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · ep ${pr.out.ep.toFixed(1)} · ${pr.out.verdicts.map(v => v[0]).join(' ')}</span></div>
+      <span class="arrow">→</span>
+      <div class="who"><b class="up">${esc(pr.in.name)}</b> <span class="team-tag">${pr.in.team} · £${pr.in.cost}m · ep ${pr.in.ep_next}</span></div>
+      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">proj Δ / GW</div></div>
+    </div>`).join('') || '<p class="hint">No clearly positive moves right now — holding is fine.</p>';
+
+  // ---- Fixture swing table ----
+  const groups = {};
+  squad.forEach(s => {
+    if (!s.t || !s.e) return;
+    const g = groups[s.t.code] || (groups[s.t.code] = { short: s.t.short, a5: s.a5, fxs: s.fxs, names: [] });
+    g.names.push(s.e.n);
+  });
+  const swingRows = Object.values(groups).sort((a, b) => a.a5 - b.a5).map(g => {
+    const cls = g.a5 <= 2.2 ? 'swing-good' : g.a5 <= 3 ? 'swing-mid' : 'swing-bad';
+    const fx = g.fxs.slice(0, 5).map(f => `<span class="fdr f${f.fdr}" style="margin:0 1px">${f.fdr}</span>`).join('');
+    return `<tr><td><b>${g.short}</b></td><td style="white-space:normal">${g.names.join(', ')}</td>
+      <td>${fx}</td><td class="num ${cls}">${g.a5.toFixed(1)}</td></tr>`;
+  }).join('');
+  $('#swingTable').innerHTML = `<tr><th>Club</th><th>Your players</th><th>Next 5</th><th class="num">Avg</th></tr>${swingRows}`;
+
+  // ---- Recent transfers ----
+  const trs = (hist.transfers || []).slice(-6).reverse();
+  $('#transferHist').innerHTML = trs.map(t => `
+    <div class="tr-row"><span class="gw-tag">GW${t.event}</span>
+      <span class="up">+ ${esc(elById[t.element_in] ? elById[t.element_in].n : '?')}</span>
+      <span class="down">− ${esc(elById[t.element_out] ? elById[t.element_out].n : '?')}</span></div>`).join('')
+    || '<p class="hint">No transfers yet this season.</p>';
+
+  // ---- Budget & targets ----
+  const benchVals = bench.map(s => (s.e ? s.e.c / 10 : 0)).sort((a, b) => b - a);
   const maxFund = bank + (benchVals[0] || 0) + 0.05;
   $('#budgetHint').innerHTML = `Funds if you sell your priciest bench player: <b>£${maxFund.toFixed(1)}m</b> (bank £${bank.toFixed(1)}m). Targets below fit that slot and have kind next-3 fixtures.`;
 
@@ -187,7 +292,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     `<span class="chip-pill ${used.has(key) ? 'chip-used' : 'chip-avail'}">${label}${used.has(key) ? ' (used)' : ''}</span>`).join('');
 
   // DGW/BGW scan next 4 GWs for YOUR players' teams
-  const myTeamCodes = [...new Set(squadRows.map(r => elById[r.element]).filter(Boolean).map(e => teamById[e.t]?.code).filter(Boolean))];
+  const myTeamCodes = Object.keys(groups);
   const gwNotes = [];
   for (let ev = picksGw + 1; ev <= picksGw + 4; ev++) {
     const dgws = myTeamCodes.filter(c => (flags[c] || {})[ev] >= 2);
@@ -199,7 +304,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   if (gwNotes.length) advice += gwNotes.map(n => `<div class="advice">${n}</div>`).join('');
   const chipsLeft = ALL_CHIPS.filter(([k]) => !used.has(k)).length;
   if (!used.has('wildcard')) {
-    const flagged = squadRows.filter(r => { const e = elById[r.element]; return e && e.s && e.s !== 'a'; }).length;
+    const flagged = squad.filter(s => s.flagged).length;
     if (flagged >= 2) advice += `<div class="advice">⚠️ You have <b>${flagged}</b> flagged players — a Wildcard could reset your squad.</div>`;
     else advice += `<div class="advice">Wildcard still available — consider saving it for a double gameweek or injury crisis.</div>`;
   }

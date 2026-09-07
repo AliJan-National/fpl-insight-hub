@@ -1,8 +1,7 @@
 # Update the live site
 
-After changing files locally (in C:\fpl-push):
-
 ```powershell
+cd C:\fpl-push
 git add -A
 git commit -m "update"
 git push

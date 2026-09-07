@@ -73,11 +73,22 @@
       <div id="teamSummary"></div>
     </div>
     <div id="teamDetail" style="display:none">
+      <div class="card" style="margin-top:16px"><h2 class="green">🧠 Projected Best XI — Next Gameweek</h2><div id="xiSummary"></div></div>
       <div class="grid2" style="margin-top:16px">
-        <div class="card"><h2 class="green">Your Squad &amp; Next Fixtures</h2><div id="squadList"></div></div>
-        <div class="card"><h2>Personalised Transfer Targets</h2>
-          <p class="hint" id="budgetHint"></p>
-          <div id="targetsList"></div>
+        <div class="card"><h2>Your Squad &amp; Next Fixtures</h2><div id="squadList"></div></div>
+        <div>
+          <div class="card"><h2>🎯 Captaincy In Your Squad</h2><div id="capSquadList"></div></div>
+          <div class="card" style="margin-top:16px"><h2 class="red">🔁 Suggested Moves (Sell → Buy)</h2>
+            <p class="hint" id="budgetHint"></p>
+            <div id="pairsList"></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:16px">
+        <div class="card"><h2>📈 Fixture Swing — next 5 by club</h2><table id="swingTable" class="data compact"></table></div>
+        <div>
+          <div class="card"><h2>Personalised Transfer Targets</h2><div id="targetsList"></div></div>
+          <div class="card" style="margin-top:16px"><h2>🕘 Recent Transfers</h2><div id="transferHist"></div></div>
         </div>
       </div>
       <div class="card" style="margin-top:16px"><h2>Chip Strategy</h2><div id="chipAdvice"></div></div>

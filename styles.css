@@ -152,6 +152,29 @@ footer { text-align: center; color: var(--muted); font-size: 11.5px; padding: 24
 .dgw-tag { background: rgba(0,255,133,.15); color: var(--green); font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
 .bgw-tag { background: rgba(255,85,117,.15); color: var(--red); font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
 
+/* My Team v2 */
+.xi-wrap { display: flex; gap: 18px; flex-wrap: wrap; align-items: stretch; }
+.xi-stats { display: flex; gap: 22px; flex-wrap: wrap; min-width: 220px; }
+.xi-pitch { flex: 1; min-width: 320px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.xi-cell { background: var(--card2); border-radius: 8px; padding: 7px 6px; text-align: center; font-size: 11.5px; border: 1px solid var(--line); }
+.xi-cell.capt { border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,133,.25); }
+.xi-cell .ep { color: var(--green); font-weight: 800; font-size: 13px; }
+.xi-cell .fn { color: var(--muted); font-size: 10px; }
+.vd { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .4px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+.vd-start { background: rgba(0,255,133,.18); color: var(--green); }
+.vd-bench { background: rgba(255,255,255,.10); color: var(--muted); }
+.vd-sell { background: rgba(255,85,117,.18); color: var(--red); }
+.vd-cap { background: rgba(255,201,77,.2); color: var(--amber); }
+.pair-card { display: flex; align-items: center; gap: 10px; background: var(--card2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+.pair-card .arrow { color: var(--green); font-weight: 800; font-size: 16px; }
+.pair-card .who { flex: 1; }
+.pair-card .delta { text-align: right; }
+.tr-row { display: flex; gap: 8px; align-items: center; background: var(--card2); border-radius: 8px; padding: 7px 10px; margin-bottom: 5px; font-size: 12.5px; }
+.tr-row .gw-tag { color: var(--muted); font-size: 10.5px; min-width: 38px; }
+.swing-good { color: var(--green); font-weight: 700; }
+.swing-mid { color: var(--amber); font-weight: 700; }
+.swing-bad { color: var(--red); font-weight: 700; }
+
 .proxy-details { margin-top: 14px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
 .proxy-details summary { cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 600; }
 .proxy-details summary:hover { color: var(--txt); }
