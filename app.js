@@ -49,26 +49,40 @@ function renderCaptains() {
 }
 function renderPrices() {} // merged into renderCaptains
 
-// ============ My Team (official FPL API with fallbacks) ============
-let BOOT = null; // cached bootstrap-static
+// ============ My Team (official FPL API — static-host friendly) ============
+// Player/team catalog is pre-baked (api/fplids.json), so only the 3 tiny
+// team-specific calls need a live route: direct -> /fpl/ proxy -> YOUR proxy -> relay.
+let IDS = null;
+async function loadIds() {
+  if (!IDS) IDS = await (await fetch('api/fplids.json')).json();
+  return IDS;
+}
+async function fetchWithTimeout(url, ms = 12000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r;
+  } finally { clearTimeout(t); }
+}
 async function fplApi(path) {
   const url = `https://fantasy.premierleague.com/api/${path}`;
-  // 1) direct (works if CORS allowed), 2) same-origin proxy, 3) public CORS relay
-  const attempts = [url, `/fpl/${path}`, `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`];
+  const custom = (localStorage.getItem('fplProxy') || 'https://fpl-proxy.alijanhassan07.workers.dev').trim().replace(/\/+$/, '');
+  const attempts = [
+    url,
+    `/fpl/${path}`,
+    ...(custom ? [`${custom}/${path}`] : []),
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
   let lastErr;
   for (const u of attempts) {
     try {
-      const r = await fetch(u, { headers: { 'Accept': 'application/json' } });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const r = await fetchWithTimeout(u);
       return await r.json();
     } catch (e) { lastErr = e; }
   }
   throw lastErr;
-}
-async function getBootstrap() {
-  if (BOOT) return BOOT;
-  BOOT = await fplApi('bootstrap-static/');
-  return BOOT;
 }
 
 const ALL_CHIPS = [['wildcard', 'Wildcard'], ['freehit', 'Free Hit'], ['bboost', 'Bench Boost'], ['3xc', 'Triple Captain']];
@@ -79,7 +93,7 @@ async function loadMyTeam() {
   if (!id) { status.textContent = 'Enter a Team ID first.'; return; }
   status.textContent = 'Loading…';
   try {
-    const boot = await getBootstrap();
+    const ids = await loadIds();
     const entry = await fplApi(`entry/${id}/`);
     const hist = await fplApi(`entry/${id}/history/`);
     // find latest gameweek with published picks (current GW may not be processed yet)
@@ -92,16 +106,18 @@ async function loadMyTeam() {
         if (p && p.picks && p.picks.length) { picks = p; picksGw = gw; break; }
       } catch (e) { /* try earlier GW */ }
     }
-    renderTeam(boot, entry, hist, picks, picksGw);
+    renderTeam(ids, entry, hist, picks, picksGw);
     status.textContent = '';
   } catch (e) {
-    status.textContent = 'Could not load team — check the ID (it must be a public FPL entry). ' + e.message;
+    const custom = (localStorage.getItem('fplProxy') || 'https://fpl-proxy.alijanhassan07.workers.dev').trim();
+    status.innerHTML = 'Could not load team. If this is a public site, set your free Cloudflare proxy below (one-time, 2&nbsp;min). ' + e.message;
   }
 }
 
-function renderTeam(boot, entry, hist, picks, picksGw) {
-  const elById = Object.fromEntries(boot.elements.map(e => [e.id, e]));
-  const teamById = Object.fromEntries(boot.teams.map(t => [t.id, t]));
+function renderTeam(ids, entry, hist, picks, picksGw) {
+  // compact catalog: elements by id, teams by FPL team id
+  const elById = ids.elements;
+  const teamById = ids.teams;
   $('#teamDetail').style.display = '';
 
   const eh = picks ? picks.entry_history : {};
@@ -124,18 +140,18 @@ function renderTeam(boot, entry, hist, picks, picksGw) {
   const ownedIds = new Set(squadRows.map(r => r.element));
   const squadHtml = squadRows.map(r => {
     const e = elById[r.element]; if (!e) return '';
-    const t = teamById[e.team];
-    const code = t ? t.code : e.team_code;
+    const t = teamById[e.t];
+    const code = t ? t.code : null;
     const nf = (window.NEXT3_BY_CODE || {})[code] || [];
     const fxTxt = nf.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ');
     const capt = r.is_captain ? '<span class="badge-c">C</span>' : r.is_vice_captain ? '<span class="badge-v">V</span>' : '';
-    const st = e.status && e.status !== 'a' ? ' ⚠️' : '';
-    const gwPts = (r.stats && r.stats.total_points) ?? e.event_points ?? '—';
+    const st = e.s && e.s !== 'a' ? ' ⚠️' : '';
+    const gwPts = (r.stats && r.stats.total_points) ?? '—';
     return `<div class="squad-row ${r.is_captain ? 'captain' : ''}">
-      ${capt}<span class="pos ${posName[e.element_type]}">${posName[e.element_type]}</span>
-      <span class="nm">${esc(e.web_name)}${st} <span class="team-tag">${t ? t.short_name : ''}</span></span>
+      ${capt}<span class="pos ${posName[e.et]}">${posName[e.et]}</span>
+      <span class="nm">${esc(e.n)}${st} <span class="team-tag">${t ? t.short : ''}</span></span>
       <span class="fix">${fxTxt}</span>
-      <b class="pts">${gwPts}</b><span class="team-tag">£${(e.now_cost / 10).toFixed(1)}</span>
+      <b class="pts">${gwPts}</b><span class="team-tag">£${(e.c / 10).toFixed(1)}</span>
     </div>`;
   }).join('');
   $('#squadList').innerHTML = squadHtml || '<p class="hint">No picks published yet.</p>';
@@ -171,7 +187,7 @@ function renderTeam(boot, entry, hist, picks, picksGw) {
     `<span class="chip-pill ${used.has(key) ? 'chip-used' : 'chip-avail'}">${label}${used.has(key) ? ' (used)' : ''}</span>`).join('');
 
   // DGW/BGW scan next 4 GWs for YOUR players' teams
-  const myTeamCodes = [...new Set(squadRows.map(r => elById[r.element]).filter(Boolean).map(e => teamById[e.team]?.code).filter(Boolean))];
+  const myTeamCodes = [...new Set(squadRows.map(r => elById[r.element]).filter(Boolean).map(e => teamById[e.t]?.code).filter(Boolean))];
   const gwNotes = [];
   for (let ev = picksGw + 1; ev <= picksGw + 4; ev++) {
     const dgws = myTeamCodes.filter(c => (flags[c] || {})[ev] >= 2);
@@ -183,7 +199,7 @@ function renderTeam(boot, entry, hist, picks, picksGw) {
   if (gwNotes.length) advice += gwNotes.map(n => `<div class="advice">${n}</div>`).join('');
   const chipsLeft = ALL_CHIPS.filter(([k]) => !used.has(k)).length;
   if (!used.has('wildcard')) {
-    const flagged = squadRows.filter(r => { const e = elById[r.element]; return e && e.status && e.status !== 'a'; }).length;
+    const flagged = squadRows.filter(r => { const e = elById[r.element]; return e && e.s && e.s !== 'a'; }).length;
     if (flagged >= 2) advice += `<div class="advice">⚠️ You have <b>${flagged}</b> flagged players — a Wildcard could reset your squad.</div>`;
     else advice += `<div class="advice">Wildcard still available — consider saving it for a double gameweek or injury crisis.</div>`;
   }
@@ -324,6 +340,15 @@ $('#search').oninput = renderPlayers;
 $('#min90').onchange = renderPlayers;
 $('#loadTeam').onclick = loadMyTeam;
 $('#teamId').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadMyTeam(); });
+// proxy URL (saved in browser localStorage)
+const savedProxy = localStorage.getItem('fplProxy') || '';
+if (savedProxy) $('#proxyUrl').value = savedProxy;
+$('#saveProxy').onclick = () => {
+  const v = $('#proxyUrl').value.trim().replace(/\/+$/, '');
+  if (v && !/^https?:\/\//.test(v)) { $('#proxyStatus').textContent = 'URL must start with https://'; return; }
+  if (v) localStorage.setItem('fplProxy', v); else localStorage.removeItem('fplProxy');
+  $('#proxyStatus').textContent = v ? 'Saved ✓ — now try Load My Team' : 'Cleared';
+};
 $$('#posChips .chip').forEach(c => c.onclick = () => {
   $$('#posChips .chip').forEach(x => x.classList.remove('active'));
   c.classList.add('active');

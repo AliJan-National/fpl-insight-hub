@@ -60,6 +60,16 @@
         <button id="loadTeam" class="btn">Load My Team</button>
         <span id="teamStatus" class="muted"></span>
       </div>
+      <details class="proxy-details">
+        <summary>⚙️ One-time setup: connect the FPL API (if team loading fails)</summary>
+        <p>Browsers can't call the FPL API directly (no CORS). Deploy a free 10-line proxy — see
+          <b>CLOUDFLARE-WORKER.md</b> in this repo — then paste its URL here once. It's saved in your browser.</p>
+        <div class="entry-row">
+          <input id="proxyUrl" type="text" placeholder="https://your-proxy.your-subdomain.workers.dev">
+          <button id="saveProxy" class="btn">Save proxy</button>
+          <span id="proxyStatus" class="muted"></span>
+        </div>
+      </details>
       <div id="teamSummary"></div>
     </div>
     <div id="teamDetail" style="display:none">

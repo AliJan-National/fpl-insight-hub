@@ -2,8 +2,6 @@
 
 A free Fantasy Premier League analytics dashboard built entirely on **open data**. No paywall, no account needed.
 
-**Live demo data season:** 2026/27 · updates via the open dataset below.
-
 ## Features
 
 | Tab | What it does |
@@ -18,29 +16,15 @@ A free Fantasy Premier League analytics dashboard built entirely on **open data*
 
 ## Data sources
 
-- **[olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights)** — the open dataset (official FPL API + detailed match stats + Elo), refreshed 3× daily. Thanks to the author for making this freely available.
-- **Official FPL API** (`fantasy.premierleague.com/api/`) — live fixtures, expected points, price projections, team picks.
-
-## How it works
-
-This is a 100% static site: `index.html` + `app.js` + `styles.css` + pre-built JSON in `api/`. The "My Team" feature calls the official FPL API directly from your browser (with a CORS-relay fallback for static hosting). No server, no database, no tracking.
+- **[olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights)** — the open dataset (official FPL API + detailed match stats + Elo), refreshed 3× daily.
+- **Official FPL API** (`fantasy.premierleague.com/api/`) — live fixtures, expected points, price projections, team picks (via a small Cloudflare Worker proxy).
 
 ## Updating the data
 
-The `api/` JSON is a snapshot. To rebuild it from the latest source data, run:
-
-```bash
-bash refresh.sh
-```
-
-(Requires Python 3 + `pandas`, and clones the FPL-Core-Insights repo next to this folder.)
-
-## Deploying
-
-See [DEPLOY.md](DEPLOY.md). Quick version: this repo root is GitHub-Pages-ready — enable Pages in **Settings → Pages → Deploy from branch → main / root** (the `.nojekyll` file is included).
+The `api/` JSON is a snapshot. Rebuild from latest sources with `bash refresh.sh` (needs Python 3 + pandas), then commit and push.
 
 ## Credits & rights
 
-- Data: [olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights) (free & open) — please keep the attribution.
-- FPL data © Premier League. This is an unofficial fan project, not affiliated with the Premier League.
-- Signals (captain picks, price predictions, transfer suggestions) are heuristics for fun and insight — not guarantees.
+- Data: [olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights) — please keep the attribution.
+- FPL data © Premier League. Unofficial fan project, not affiliated with the Premier League.
+- Signals are heuristics for fun and insight — not guarantees.
