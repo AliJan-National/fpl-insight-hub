@@ -342,6 +342,17 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   }
   if (chipsLeft === 0) advice += `<div class="advice">All chips used — pure transfers from here!</div>`;
   $('#chipAdvice').innerHTML = advice;
+
+  // ---- hand context to the Assistant ----
+  window.TEAMCTX = {
+    squad, bank, maxFund, picksGw,
+    entryName: entry.name,
+    totalPts: eh.total_points ?? entry.summary_overall_points ?? 0,
+    rank: eh.overall_rank || entry.summary_overall_rank || 0,
+    value: (eh.value ?? 1000) / 10,
+    proj, benchWaste,
+    usedChips: [...used], chipsLeft: ALL_CHIPS.filter(([k]) => !used.has(k)).map(([, l]) => l),
+  };
 }
 
 function renderLeague() {
@@ -466,12 +477,188 @@ function renderNews() {
   $('#newsTable').innerHTML = html;
 }
 
+// ============ Wildcard Lab ============
+const avgN = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + f.fdr, 0) / a.length : 3; };
+const pScore = (p) => (p.form || 0) * 1.2 + (p.ep_next || 0) * 1.5 + (3 - avgN(p.next3, 3)) * 1.5 + (p.pos === 'DEF' ? Math.min(2, (p.cbit || 0) * 0.05) : 0);
+let WC = null;
+function buildWildcard() {
+  const BUDGET = 100.0, need = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
+  const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
+  const byPos = {};
+  for (const pos of ['GK', 'DEF', 'MID', 'FWD']) byPos[pos] = pool.filter(p => p.pos === pos).sort((a, b) => pScore(b) - pScore(a));
+  const pick = {}; for (const pos in need) pick[pos] = byPos[pos].slice(0, need[pos]);
+  let spent = Object.values(pick).flat().reduce((s, p) => s + p.cost, 0);
+  let guard = 0;
+  while (spent > BUDGET && guard++ < 300) {
+    let best = null;
+    for (const pos in pick) for (const sel of pick[pos]) {
+      for (const alt of byPos[pos]) {
+        if (pick[pos].includes(alt) || alt.cost >= sel.cost) continue;
+        const saving = sel.cost - alt.cost;
+        const loss = Math.max(0.05, pScore(sel) - pScore(alt));
+        const ratio = loss / saving;
+        if (!best || ratio < best.ratio) best = { pos, sel, alt, saving, ratio };
+        if (alt.cost < sel.cost - 3) break;
+      }
+    }
+    if (!best) break;
+    pick[best.pos] = pick[best.pos].map(p => p === best.sel ? best.alt : p);
+    spent -= best.saving;
+  }
+  WC = { pick, spent: Object.values(pick).flat().reduce((s, p) => s + p.cost, 0) };
+}
+function renderWildcard() {
+  if (!WC) buildWildcard();
+  const fdrM = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
+  const all = Object.values(WC.pick).flat().sort((a, b) => pScore(b) - pScore(a));
+  $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · spend £${WC.spent.toFixed(1)}m of £100m`;
+  $('#wcSummary').innerHTML = `<div class="team-stats">
+    <div class="tstat"><div class="v">£${WC.spent.toFixed(1)}m</div><div class="k">Total spend</div></div>
+    <div class="tstat"><div class="v">${(100 - WC.spent).toFixed(1)}</div><div class="k">£m left in bank</div></div>
+    <div class="tstat"><div class="v">${all.slice(0, 3).map(p => p.name).join(', ')}</div><div class="k">Headline picks</div></div>
+  </div>`;
+  $('#wcSquad').innerHTML = ['GK', 'DEF', 'MID', 'FWD'].map(pos => `
+    <h3 style="margin:12px 0 6px;color:var(--muted);font-size:12px">${pos}</h3>` +
+    WC.pick[pos].slice().sort((a, b) => pScore(b) - pScore(a)).map(p => `
+    <div class="squad-row">
+      <span class="pos ${p.pos}">${p.pos}</span>
+      <span class="nm">${esc(p.name)} <span class="team-tag">${p.team}</span></span>
+      <span class="fix">${(p.next3 || []).slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}" style="margin:0 2px">${f.fdr}</span>`).join(' ')}</span>
+      <span class="team-tag">form ${p.form}</span><b class="pts">${p.pts}</b><span class="team-tag">£${p.cost}m</span>
+    </div>`).join('')).join('');
+  const caps = all.map(p => ({ p, c: (p.ep_next || 0) * (fdrM[((p.next3 || [])[0] || {}).fdr || 3] || 1) })).sort((a, b) => b.c - a.c);
+  $('#wcCaptain').innerHTML = caps.slice(0, 2).map((x, i) => `
+    <div class="sig-card"><div class="rank">${i ? 'V' : 'C'}</div>
+      <div class="sig-info"><div class="sig-name">${esc(x.p.name)} ${posBadge(x.p.pos)} <span class="team-tag">${x.p.team} · ${((x.p.next3 || [])[0] || {}).opp || '—'}(${((x.p.next3 || [])[0] || {}).ha || '?'})</span></div>
+      <div class="sig-meta">ep ${x.p.ep_next} · next FDR ${((x.p.next3 || [])[0] || {}).fdr || 3}</div></div>
+      <div class="sig-pts"><div class="pts">${x.c.toFixed(1)}</div></div></div>`).join('');
+  const ctx = window.TEAMCTX;
+  if (ctx) {
+    const owned = new Set(ctx.squad.map(s => s.e && s.e.n));
+    const keep = all.filter(p => owned.has(p.name)).map(p => p.name);
+    $('#wcOverlap').innerHTML = `<p class="hint">You already own <b>${keep.length}</b> of these 15:</p>
+      <div class="sig-reasons">${keep.map(k => `<span class="reason">${esc(k)}</span>`).join('') || '<span class="reason">none</span>'}</div>
+      <div class="advice" style="margin-top:10px">${keep.length >= 8 ? 'Your squad is close to optimal — a wildcard may be wasted; target 1–2 upgrades instead.' : keep.length >= 5 ? 'A wildcard would change ~' + (15 - keep.length) + ' players — worth it if your bench is dead money.' : 'Your team diverges heavily from the optimal model — strong wildcard case.'}</div>`;
+  } else {
+    $('#wcOverlap').innerHTML = '<p class="hint">Load your team in <b>My Team</b> to see how many of these you already own and whether a wildcard is worth it.</p>';
+  }
+}
+
+// ============ Assistant (data-grounded copilot) ============
+function scout(p) {
+  const d = (p.xg_diff || 0);
+  return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
+  <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
+  <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
+  <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.fdr}">${f.fdr}</span>`).join(' ')}</span><br>
+  <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
+}
+function findPlayer(q) {
+  const Q = q.toLowerCase();
+  let best = null;
+  for (const p of DATA.players) {
+    const words = p.name.toLowerCase().split(/[\s.]+/);
+    const hit = Q.includes(p.name.toLowerCase()) || words.some(w => w.length >= 4 && Q.includes(w));
+    if (hit && (!best || p.name.length > best.name.length)) best = p;
+  }
+  return best;
+}
+function askAI(q) {
+  const Q = q.toLowerCase();
+  const ctx = window.TEAMCTX;
+  const pl = findPlayer(q);
+  if (/captain|armband/.test(Q)) {
+    if (ctx) {
+      const ranked = ctx.squad.map(s => ({ s, c: s.cap })).sort((a, b) => b.c - a.c).slice(0, 3);
+      return `For <b>GW${ctx.picksGw + 1}</b>, your captain options ranked by fixture-adjusted projection:<br>` +
+        ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), FDR ${(x.s.fxs[0] || {}).fdr || 3}, ep ${x.s.ep.toFixed(1)} → score ${x.c.toFixed(1)}</span>`).join('') +
+        `<br><span class="mrow">Verdict: <b>${esc(ranked[0].s.e.n)}</b> is the standout${ranked[1] ? '; ' + esc(ranked[1].s.e.n) + ' the safe vice.' : '.'}</span>`;
+    }
+    return `Global captain picks this GW: <b>${DATA.captains.slice(0, 3).map(c => c.name).join(', ')}</b> — see the Captain & Prices tab for reasons.`;
+  }
+  if (/wildcard/.test(Q)) {
+    renderWildcard();
+    const all = Object.values(WC.pick).flat().sort((a, b) => pScore(b) - pScore(a));
+    let extra = '';
+    if (ctx) {
+      const keep = all.filter(p => ctx.squad.some(s => s.e && s.e.n === p.name)).length;
+      extra = `<br><span class="mrow">You own <b>${keep}/15</b> of the model team → ${keep >= 8 ? 'wildcard probably NOT needed; do targeted transfers.' : keep >= 5 ? 'borderline — wildcard if your bench is dead money.' : 'strong wildcard case.'}</span>`;
+    }
+    return `Current model wildcard team headlines: <b>${all.slice(0, 5).map(p => p.name).join(', ')}</b>. ${extra}<br><span class="mrow">Open the <b>Wildcard Lab</b> tab for the full 15 + captain.</span>`;
+  }
+  if (/(sell|drop|get rid|remove)/.test(Q)) {
+    const t = pl || (ctx ? ctx.squad.filter(s => s.verdicts.some(v => v[0] === 'SELL?')).sort((a, b) => a.ep - b.ep)[0] : null);
+    const p = t && t.e ? DATA.players.find(x => x.name === t.e.n) : t;
+    if (!p) return 'Tell me who you mean — e.g. "should I sell Thiago?"';
+    const bad = (p.xg_diff > 0.8) || ((p.next3 || []).length && avgN(p.next3, 3) >= 3.2) || p.price_dir === 'fall' || (p.status !== 'a');
+    return `${scout(p)}<br><span class="mrow">🤖 Verdict: ${bad ? '<b>Sell candidate</b> — ' + (p.status !== 'a' ? 'fitness risk.' : p.xg_diff > 0.8 ? 'riding luck on xG.' : 'fixtures/price turning away.') : '<b>Hold</b> — underlying numbers are fine; fixtures ' + (avgN(p.next3, 3) <= 2.8 ? 'are kind.' : 'are tough but the stats support him.')}</span>`;
+  }
+  if (/(buy|bring in|transfer in|target|replace)/.test(Q)) {
+    const posMatch = /(gk|def|mid|fwd|goalkeeper|defender|midfielder|forward)/.exec(Q);
+    const under = /under (\d+(?:\.\d+)?)/.exec(Q);
+    const posMap = { gk: 'GK', goalkeeper: 'GK', def: 'DEF', defender: 'DEF', mid: 'MID', midfielder: 'MID', fwd: 'FWD', forward: 'FWD' };
+    const budget = ctx ? ctx.maxFund : (under ? parseFloat(under[1]) : 100);
+    let cands = DATA.players.filter(p => p.status === 'a' && p.mins >= 90 && p.cost <= budget && avgN(p.next3, 3) <= 2.9);
+    if (posMatch) cands = cands.filter(p => p.pos === posMap[posMatch[1]]);
+    if (ctx) cands = cands.filter(p => !ctx.squad.some(s => s.e && s.e.n === p.name));
+    cands.sort((a, b) => ((b.ep_next || 0) + b.form * 0.5) - ((a.ep_next || 0) + a.form * 0.5));
+    const top = cands.slice(0, 3);
+    return top.length ? `Best value in budget (£${budget.toFixed(1)}m)${posMatch ? ' at ' + posMap[posMatch[1]] : ''}:<br>` + top.map(p => `<span class="mrow">• ${scout(p)}</span>`).join('') : 'Nothing affordable with good fixtures — consider selling a bench earner first to raise funds.';
+  }
+  if (/bench/.test(Q)) {
+    if (!ctx) return 'Load your team first (My Team tab) so I can rank your bench.';
+    const b = ctx.squad.slice().sort((a, b2) => b2.cap - a.cap).slice(-4);
+    return `For GW${ctx.picksGw + 1}, your weakest projections (bench them):<br>` + b.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${((s.fxs[0] || {}).opp) || '—'}(${(s.fxs[0] || {}).ha || '?'} FDR ${(s.fxs[0] || {}).fdr || 3}), ep ${s.ep.toFixed(1)}</span>`).join('') + `<br><span class="mrow">Bench waste if all sit: ${b.reduce((s, x) => s + x.ep, 0).toFixed(1)} pts.</span>`;
+  }
+  if (/(injur|fit|doubt|hurt|return)/.test(Q)) {
+    const flagged = ctx ? ctx.squad.filter(s => s.flagged) : [];
+    if (ctx && flagged.length) return `Your flagged players:<br>` + flagged.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${esc((DATA.news.find(n => n.name === s.e.n) || {}).text || 'flagged')}</span>`).join('');
+    return `League-wide biggest concerns: ${DATA.news.slice(0, 5).map(n => `${n.name} (${n.status})`).join(', ')}. Your squad has no flagged players. ✅`;
+  }
+  if (/chip/.test(Q)) {
+    if (!ctx) return 'Load your team to see chip status.';
+    return `Chips: <b>${ctx.usedChips.length ? ctx.usedChips.join(', ') + ' used' : 'none used'}</b>; remaining: ${ctx.chipsLeft.join(', ') || 'none'}. ${ctx.usedChips.includes('wildcard') ? 'Wildcard gone — plan Free Hit for a double GW and Bench Boost when your bench has easy fixtures.' : 'Wildcard still live — check your Wildcard Lab overlap score before pulling it.'}`;
+  }
+  if (/(rate|overview|how is my team|think of my team|my team\?)/.test(Q)) {
+    if (!ctx) return "Load your team in the My Team tab and I'll give you a full audit.";
+    const strengths = ctx.squad.slice().sort((a, b) => b.ep - a.ep).slice(0, 3);
+    const weak = ctx.squad.slice().sort((a, b) => b.a5 - a.a5).slice(0, 3);
+    return `<b>${esc(ctx.entryName)}</b> — ${ctx.totalPts} pts, rank ${ctx.rank.toLocaleString()}, value £${ctx.value}m.<br>
+    <span class="mrow">💪 Core: ${strengths.map(s => esc(s.e.n)).join(', ')} carry your projections.</span><br>
+    <span class="mrow">⚠️ Fixture worries: ${weak.map(s => `${esc(s.e.n)} (avg FDR ${s.a5.toFixed(1)})`).join(', ')}.</span><br>
+    <span class="mrow">🧮 Projected best XI: ${ctx.proj.toFixed(1)} pts next GW · bench waste ${ctx.benchWaste.toFixed(1)}.</span><br>
+    <span class="mrow">Ask "who to bench", "best transfer" or "should I wildcard" for next steps.</span>`;
+  }
+  if (/fixture|run|schedule/.test(Q)) {
+    if (!ctx) return 'Load your team for a personalised fixture view, or open the Fixtures tab.';
+    const g = {};
+    ctx.squad.forEach(s => { if (s.t) g[s.t.code] = g[s.t.code] || { short: s.t.short, a5: s.a5 }; });
+    return `Your clubs' next-5 difficulty (easiest first):<br>` + Object.values(g).sort((a, b) => a.a5 - b.a5).map(r => `<span class="mrow">• <b>${r.short}</b> — avg ${r.a5.toFixed(1)} ${r.a5 <= 2.2 ? '🟢' : r.a5 <= 3 ? '🟡' : '🔴'}</span>`).join('');
+  }
+  if (pl) return scout(pl);
+  return `I can help with: <b>captain</b> picks, <b>sell/buy</b> advice (budget-aware), <b>bench</b> choices, <b>injuries</b>, <b>chips</b>, <b>fixtures</b>, any <b>player scout report</b> ("Haaland?"), "best DEF under 6m", or <b>wildcard</b> strategy. ${ctx ? '' : 'Tip: load your team in My Team for personalised answers.'}`;
+}
+function chat(q) {
+  const log = $('#chatLog');
+  log.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(q)}</div>`);
+  log.scrollTop = log.scrollHeight;
+  setTimeout(() => {
+    log.insertAdjacentHTML('beforeend', `<div class="msg bot">${askAI(q)}</div>`);
+    log.scrollTop = log.scrollHeight;
+  }, 30);
+}
+$('#chatSend').onclick = () => { const v = $('#chatInput').value.trim(); if (v) { chat(v); $('#chatInput').value = ''; } };
+$('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#chatSend').click(); });
+$$('#quickQs .chip').forEach(c => c.onclick = () => chat(c.textContent));
+$('#chatLog').innerHTML = `<div class="msg bot">👋 I'm your <b>FPL Copilot</b>. I know the full 2026/27 dataset (653 players, fixtures, xG, prices) — and once you load your team in <b>My Team</b>, every answer becomes personal. Try the quick questions!</div>`;
+
 // tabs
 $$('.tab').forEach(t => t.onclick = () => {
   $$('.tab').forEach(x => x.classList.remove('active'));
   $$('.panel').forEach(x => x.classList.remove('active'));
   t.classList.add('active');
   $('#' + t.dataset.tab).classList.add('active');
+  if (t.dataset.tab === 'wildcard') renderWildcard();
 });
 $('#search').oninput = renderPlayers;
 $('#min90').onchange = renderPlayers;

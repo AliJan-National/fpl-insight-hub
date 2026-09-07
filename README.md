@@ -6,23 +6,17 @@ A free Fantasy Premier League analytics dashboard built entirely on **open data*
 
 | Tab | What it does |
 |---|---|
-| **Overview** | Live league table, top FPL scorers, results with xG |
-| **My Team** | FPL Team ID → projected best XI, verdicts, captaincy (form+fixture), budget-checked sell→buy pairs, GW-by-GW game plan, 5-fixture swing, targets, chips |
-| **Transfer Radar** | Buy/sell signals: xG regression, transfer momentum, differentials |
-| **Captain & Prices** | Ranked captain picks + predicted price rises/falls |
-| **Players** | 650+ players — sortable by points, xG, G−xG, CBIT, ownership, price, form |
-| **Fixtures** | Next 3 gameweeks with fixture difficulty |
-| **Injuries & News** | Flagged players with return chances |
+| **Overview** | League table, top scorers, results with xG |
+| **My Team** | Team ID → best XI, verdicts, captaincy, budget-checked moves, GW game plan, swing, chips |
+| **Wildcard Lab**  | Optimal £100m team each week (form + ep + fixtures), captain/vice, overlap with your squad |
+| **🤖 Assistant** | Chat copilot with the full dataset + your team: captain, sell/buy, bench, injuries, scout reports |
+| **Transfer Radar** | Buy/sell signals with reasons |
+| **Captain & Prices** | Captain rankings + predicted price changes |
+| **Players / Fixtures / Injuries** | Full sortable data explorer |
 
-## Data sources
+## Data
 
-- **[olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights)** — open dataset, refreshed 3× daily.
-- **Official FPL API** — via a small Cloudflare Worker proxy.
+- [olbauday/FPL-Core-Insights](https://github.com/olbauday/FPL-Core-Insights) (open, 3× daily) · Official FPL API via Cloudflare Worker.
+- Update: `bash refresh.sh`, then commit & push.
 
-## Updating
-
-`bash refresh.sh` (Python 3 + pandas), then commit & push.
-
-## Credits
-
-Data: olbauday/FPL-Core-Insights (free & open) — attribution kept. FPL data © Premier League. Unofficial fan project. Signals are heuristics — not guarantees.
+FPL data © Premier League. Unofficial fan project. Signals are heuristics — not guarantees.

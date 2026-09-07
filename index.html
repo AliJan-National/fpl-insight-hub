@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <header>
@@ -26,6 +26,8 @@
 <nav>
   <button class="tab active" data-tab="overview">Overview</button>
   <button class="tab" data-tab="myteam">My Team</button>
+  <button class="tab" data-tab="wildcard">Wildcard Lab</button>
+  <button class="tab" data-tab="assistant">🤖 Assistant</button>
   <button class="tab" data-tab="radar">Transfer Radar</button>
   <button class="tab" data-tab="captain">Captain &amp; Prices</button>
   <button class="tab" data-tab="players">Players</button>
@@ -112,6 +114,40 @@
     </div>
   </section>
 
+  <section id="wildcard" class="panel">
+    <div class="card">
+      <h2 class="green">🃏 Wildcard Team of the Week <span class="muted" id="wcMeta"></span></h2>
+      <p class="hint">Optimal 15-man squad for <b>£100.0m</b>, maximising form + expected points + next-3 fixtures. Rebuilt from the latest data snapshot every update.</p>
+      <div id="wcSummary"></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card"><h2>The Team</h2><div id="wcSquad"></div></div>
+      <div>
+        <div class="card"><h2>🎯 Captain &amp; Vice for this WC team</h2><div id="wcCaptain"></div></div>
+        <div class="card" style="margin-top:16px"><h2>Overlap with your team</h2><div id="wcOverlap"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="assistant" class="panel">
+    <div class="card chat-card">
+      <h2>🤖 FPL Copilot <span class="muted">— knows the full dataset + your loaded team</span></h2>
+      <div id="chatLog" class="chat-log"></div>
+      <div class="chips" id="quickQs">
+        <button class="chip">Who should I captain?</button>
+        <button class="chip">Best transfer this week?</button>
+        <button class="chip">Should I wildcard?</button>
+        <button class="chip">Any injury worries?</button>
+        <button class="chip">Who to bench?</button>
+        <button class="chip">Rate my team</button>
+      </div>
+      <div class="entry-row" style="margin-top:10px">
+        <input id="chatInput" type="text" placeholder="Ask anything: 'should I sell Thiago?', 'Haaland fixtures?', 'best DEF under 6m'…">
+        <button id="chatSend" class="btn">Ask</button>
+      </div>
+    </div>
+  </section>
+
   <section id="radar" class="panel">
     <p class="hint">Heuristic signals computed from the open dataset — xG regression, transfer momentum, differentials. Not financial advice 😉</p>
     <div class="grid2">
@@ -159,6 +195,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
