@@ -3,7 +3,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 let DATA = {};
 
 async function load() {
-  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker', 'teams'];
+  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker', 'teams', 'history'];
   const res = await Promise.all(names.map(n => fetch(`api/${n}.json`).then(r => r.json())));
   names.forEach((n, i) => DATA[n] = res[i]);
   renderAll();
@@ -23,6 +23,7 @@ function renderAll() {
   // single team-form model shared by every tab (same numbers as the Fixtures ticker)
   window.TF = Object.fromEntries((DATA.teams || []).map(t => [t.short, t]));
   (DATA.players || []).forEach(p => {
+    p.ep_next = p.ep_next ?? p.ep ?? 0; // official expected points, normalised field name
     const a = (window.TF[p.team] || {}).afx || [];
     (p.next3 || []).forEach((f, i) => {
       if (a[i] != null) { f.adjv = a[i]; f.afdr = Math.max(1, Math.min(5, Math.round(a[i]))); }
@@ -34,6 +35,9 @@ function renderAll() {
   window.NEXT_BY_CODE = (DATA.fplmeta && DATA.fplmeta.fixtures_by_code) || window.NEXT3_BY_CODE;
   renderLeague(); renderTopScorers(); renderResults();
   renderRadar(); renderPlayers(); renderFixtures(); renderNews();
+  $('#playerNames').innerHTML = DATA.players.map(p => `<option value="${esc(p.name)}">`).join('');
+  $('#cmpGo').onclick = renderCompare;
+  $('#planSolve').onclick = solvePlan;
   renderCaptains(); renderPrices();
 }
 
@@ -434,7 +438,7 @@ const PCOLS = [
   { k: 'pts', l: 'Pts', n: 1 }, { k: 'ep', l: 'GW', n: 1 }, { k: 'mins', l: 'Min', n: 1 },
   { k: 'g', l: 'G', n: 1 }, { k: 'a', l: 'A', n: 1 }, { k: 'xg', l: 'xG', n: 1 },
   { k: 'xg_diff', l: 'G−xG', n: 1 }, { k: 'chances', l: 'Ch', n: 1 }, { k: 'cbit', l: 'CBIT', n: 1 },
-  { k: 'own', l: 'Own%', n: 1 }, { k: 'cost', l: '£', n: 1 }, { k: 'form', l: 'Form', n: 1 },
+  { k: 'own', l: 'Own%', n: 1 }, { k: 'cost', l: '£', n: 1 }, { k: 'form', l: 'Form', n: 1 }, { k: 'spark', l: 'Trend' },
 ];
 let sortKey = 'pts', sortDir = -1, filterPos = '';
 
@@ -460,7 +464,7 @@ function renderPlayers() {
       <td class="num">${p.g}</td><td class="num">${p.a}</td><td class="num">${p.xg}</td>
       <td class="num ${d > 0.3 ? 'up' : d < -0.3 ? 'down' : ''}">${d > 0 ? '+' : ''}${d.toFixed(1)}</td>
       <td class="num">${p.chances}</td><td class="num">${p.cbit}</td>
-      <td class="num">${p.own}</td><td class="num">${p.cost}</td><td class="num">${p.form}</td></tr>`;
+      <td class="num">${p.own}</td><td class="num">${p.cost}</td><td class="num">${p.form}</td><td>${sparkSVG(p.id, 90, 26)}</td></tr>`;
   });
   $('#playerTable').innerHTML = html;
   $$('#playerTable th.sortable').forEach(th => th.onclick = () => {
@@ -596,6 +600,7 @@ function scout(p) {
   return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
   <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
   <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
+  <span class="mrow">📈 ${sparkSVG(p.id, 160, 34) || 'no match history yet'}</span><br>
   <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" title="form-adjusted ${f.adjv ?? f.fdr} (base ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')}</span><br>
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
@@ -681,6 +686,15 @@ function askAI(q) {
     const g = {};
     ctx.squad.forEach(s => { if (s.t) g[s.t.code] = g[s.t.code] || { short: s.t.short, a5: s.a5 }; });
     return `Your clubs' next-5 difficulty (easiest first):<br>` + Object.values(g).sort((a, b) => a.a5 - b.a5).map(r => `<span class="mrow">• <b>${r.short}</b> — avg ${r.a5.toFixed(1)} ${r.a5 <= 2.2 ? '🟢' : r.a5 <= 3 ? '🟡' : '🔴'}</span>`).join('');
+  }
+  if (/compare| vs |versus/.test(Q)) {
+    const parts = Q.split(/ vs | versus | and |,| or /).map(s => findPlayer(s)).filter(Boolean);
+    if (parts.length >= 2) {
+      $('#cmpA').value = parts[0].name; $('#cmpB').value = parts[1].name;
+      renderCompare();
+      return `Comparison ready — open the <b>⚖️ Compare</b> tab. Quick answer: ${(() => { let sa = 0, sb = 0; for (let i = 0; i < 5; i++) { sa += projP(parts[0], i); sb += projP(parts[1], i); } return sa >= sb ? `<b>${esc(parts[0].name)}</b> +${(sa - sb).toFixed(1)} proj over next 5.` : `<b>${esc(parts[1].name)}</b> +${(sb - sa).toFixed(1)} proj over next 5.`; })()}`;
+    }
+    return 'Tell me two players, e.g. "compare Saka vs Palmer".';
   }
   if (/(mini|league|rival|beat the leader|win my)/.test(Q)) return mlSummary();
   if (/\bhit\b|take a hit/.test(Q)) {
@@ -976,6 +990,170 @@ function mlSummary() {
   <span class="mrow">👑 Captain: <b>${esc(m.capPick.x.e.n)}</b> (${m.capPick.cls}).</span><br>
   <span class="mrow">🔄 Move: ${m.tgt ? `${m.tgt.p.name} in (${m.gain >= 0 ? '+' : ''}${m.gain.toFixed(1)}/GW, ${m.tgt.owned}/${m.n} rivals own)` : 'hold'} · Hit: ${m.hitText.startsWith('YES') ? 'YES' : 'NO'}.</span><br>
   <span class="mrow">💎 Differential: ${m.diffs[0] ? `${m.diffs[0].p.name} (${m.diffs[0].owned}/${m.n} rivals)` : '—'} · Win prob ≈ ${m.probs.Safe}/${m.probs.Balanced}/${m.probs.Aggressive}% (safe/bal/agg).</span>`;
+}
+
+// ============ 📅 PRO SUITE: projections · multi-GW solver · chips · compare · sparklines ============
+// per-GW model projection: official ep_next × form-adjusted FDR (shared model) × H/A × minutes probability
+const projP = (p, i) => {
+  const t = window.TF[p.team] || {};
+  const a = (t.afx || [3, 3, 3, 3, 3, 3, 3])[i] ?? 3;
+  const f = (p.next3 || [])[i] || null;
+  const ha = f ? f.ha : null;
+  const minProb = p.status !== 'a' ? 0.3 : Math.min(1, 0.5 + 0.5 * ((p.mins || 0) / 270));
+  return (p.ep_next || 0) * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb;
+};
+const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
+function startersAt(squad, i) {
+  const gks = squad.filter(p => p.pos === 'GK').sort((a, b) => projP(b, i) - projP(a, i));
+  const out = gks.slice(0, 1);
+  const need = { DEF: 3, MID: 3, FWD: 2 };
+  for (const pos of ['DEF', 'MID', 'FWD']) {
+    const arr = squad.filter(p => p.pos === pos).sort((a, b) => projP(b, i) - projP(a, i));
+    out.push(...arr.slice(0, need[pos]));
+  }
+  return out;
+}
+const teamProjAt = (squad, i) => {
+  const st = startersAt(squad, i);
+  return st.reduce((s, p) => s + projP(p, i), 0) + Math.max(0, ...st.map(p => projP(p, i)));
+};
+const shapeOK = (squad, out, inn) => {
+  const c = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  squad.forEach(p => c[p.pos]++);
+  c[out.pos]--; c[inn.pos]++;
+  return c.GK >= 1 && c.GK <= 2 && c.DEF >= 3 && c.DEF <= 5 && c.MID >= 3 && c.MID <= 5 && c.FWD >= 2 && c.FWD <= 3;
+};
+
+function sparkSVG(id, w = 110, h = 30) {
+  const s = (DATA.history || {})[id];
+  if (!s || !s.length) return '';
+  const pts = s.map(r => r[1]), xg = s.map(r => +(r[2] + r[3]).toFixed(2));
+  const max = Math.max(4, ...pts, ...xg);
+  const X = i => s.length === 1 ? w / 2 : 4 + i * ((w - 8) / (s.length - 1));
+  const Y = v => h - 4 - (v / max) * (h - 8);
+  const line = a => a.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle;background:rgba(255,255,255,.04);border-radius:6px">
+    <polyline points="${line(xg)}" fill="none" stroke="#4dc3ff" stroke-width="1.5" stroke-dasharray="3 2"/>
+    <polyline points="${line(pts)}" fill="none" stroke="#00ff85" stroke-width="2"/>
+    <title>per-GW points (green) vs xG+xA (blue dashed)</title></svg>`;
+}
+
+function solvePlan() {
+  const ctx = window.TEAMCTX;
+  if (!ctx) {
+    $('#planOut').innerHTML = '<div class="card"><p class="hint">Load your team in <b>My Team</b> first — the solver plans <b>your</b> squad, bank and free transfers.</p></div>';
+    $('#chipOpt').innerHTML = '';
+    return;
+  }
+  const H = +$('#planHorizon').value;
+  let squad = ctx.squad.map(s => DATA.players.find(p => p.id === s.r.element)).filter(Boolean);
+  let bank = ctx.bank, ft = 1;
+  const rows = [];
+  const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
+  for (let i = 0; i < H; i++) {
+    const rem = H - i;
+    const base = teamProjAt(squad, i);
+    let best = { val: 0.0, act: null };
+    const outs = squad.slice().sort((a, b) => hSumP(a, rem) - hSumP(b, rem)).slice(0, 6);
+    const ins = pool.filter(p => !squad.includes(p)).sort((a, b) => hSumP(b, rem) - hSumP(a, rem)).slice(0, 16);
+    for (const out of outs) for (const inn of ins) {
+      if (inn.cost > bank + out.cost + 0.1 || !shapeOK(squad, out, inn)) continue;
+      const sq2 = squad.map(p => (p === out ? inn : p));
+      let val = teamProjAt(sq2, i) - base;
+      if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(squad, i + 1));
+      if (ft <= 0) val -= 4;
+      if (val > best.val + 0.25) best = { val, act: { out, inn } };
+    }
+    const hit = !!best.act && ft <= 0;
+    if (best.act) { bank += best.act.out.cost - best.act.inn.cost; squad = squad.map(p => (p === best.act.out ? best.act.inn : p)); ft = Math.max(0, ft - 1); }
+    else ft = Math.min(5, ft + 1);
+    const st = startersAt(squad, i);
+    const cap = st.slice().sort((a, b) => projP(b, i) - projP(a, i))[0];
+    rows.push({ gw: DATA.fplmeta.current_gw + 1 + i, act: best.act, hit, cap, proj: teamProjAt(squad, i), ft });
+  }
+  const tot = rows.reduce((s, r) => s + r.proj, 0);
+  $('#planOut').innerHTML = `<div class="card"><h2>🧾 Optimal ${H}-GW plan · projected ≈ ${tot.toFixed(1)} pts</h2>
+    <table class="data"><tr><th>GW</th><th>Move</th><th>Captain</th><th class="num">Proj XI+cap</th><th>FT left</th></tr>
+    ${rows.map(r => `<tr><td><b>GW${r.gw}</b></td>
+      <td>${r.act ? `<span class="down">− ${esc(r.act.out.name)}</span> → <span class="up">+ ${esc(r.act.inn.name)}</span>${r.hit ? ' <b class="down">(hit −4)</b>' : ''}</td>` : 'Roll (save FT)'}</td>
+      <td><b>${r.cap ? esc(r.cap.name) : '—'}</b></td><td class="num">${r.proj.toFixed(1)}</td><td class="num">${r.ft}</td></tr>`).join('')}
+    </table>
+    <p class="muted">Projections use the shared form-adjusted model (ep × adj FDR × home/away × minutes). Re-solve after every deadline — plans are dynamic, not promises.</p></div>`;
+  chipOptimizer(squad, H);
+}
+
+function chipOptimizer(squad, H) {
+  const chips = window.TEAMCTX ? window.TEAMCTX.chipsLeft : [];
+  const cards = [];
+  if (chips.includes('Triple Captain')) {
+    let best = null;
+    for (let i = 0; i < Math.min(H + 2, 6); i++) {
+      const st = startersAt(squad, i);
+      const cap = st.slice().sort((a, b) => projP(b, i) - projP(a, i))[0];
+      const bonus = cap ? projP(cap, i) : 0;
+      if (!best || bonus > best.bonus) best = { i, cap, bonus };
+    }
+    if (best) cards.push(`<div class="ml-rival"><h4>🧨 Triple Captain</h4><div class="gapline">Best window: <b>GW${DATA.fplmeta.current_gw + 1 + best.i}</b> on <b>${esc(best.cap.name)}</b> (+${best.bonus.toFixed(1)} bonus pts) — but cross-check vs your Mini League mode: in DEFEND, TC the same player your rivals will captain.</div></div>`);
+  }
+  if (chips.includes('Bench Boost')) {
+    let best = null;
+    for (let i = 0; i < Math.min(H + 2, 6); i++) {
+      const s = squad.reduce((x, p) => x + projP(p, i), 0);
+      if (!best || s > best.s) best = { i, s };
+    }
+    cards.push(`<div class="ml-rival"><h4>💪 Bench Boost</h4><div class="gapline">Best window: <b>GW${DATA.fplmeta.current_gw + 1 + best.i}</b> (all-15 projection ${best.s.toFixed(1)}) — ideally a week your bench plays FDR ≤3 and no blanks.</div></div>`);
+  }
+  if (chips.includes('Free Hit')) {
+    let best = null;
+    for (let i = 0; i < Math.min(H + 2, 6); i++) {
+      const fh = buildFH(i);
+      const s = fh.reduce((x, p) => x + projP(p, i), 0);
+      if (!best || s > best.s) best = { i, s, fh };
+    }
+    const gain = best.s - squad.reduce((x, p) => x + projP(p, best.i), 0);
+    cards.push(`<div class="ml-rival"><h4>🎯 Free Hit</h4><div class="gapline">Best window: <b>GW${DATA.fplmeta.current_gw + 1 + best.i}</b> (+${Math.max(0, gain).toFixed(1)} over your XI). Draft: ${best.fh.slice(0, 6).map(p => esc(p.name)).join(', ')}…</div></div>`);
+  }
+  $('#chipOpt').innerHTML = cards.length ? `<div class="card"><h2>🃏 Chip Optimiser (over your horizon)</h2><div class="ml-grid">${cards.join('')}</div></div>` : '';
+}
+function buildFH(i) {
+  const need = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
+  const pick = [];
+  const tc = {};
+  const pool = DATA.players.filter(p => p.status === 'a').sort((a, b) => projP(b, i) - projP(a, i));
+  for (const p of pool) {
+    if (!need[p.pos]) continue;
+    if ((tc[p.team] || 0) >= 3) continue;
+    pick.push(p); tc[p.team] = (tc[p.team] || 0) + 1; need[p.pos]--;
+    if (pick.length === 15) break;
+  }
+  return pick;
+}
+
+function renderCompare() {
+  const pick = id => findPlayer(($('#' + id).value || '').toLowerCase());
+  const ps = [pick('cmpA'), pick('cmpB'), pick('cmpC')].filter(Boolean);
+  const uniq = [...new Map(ps.map(p => [p.id, p])).values()];
+  if (uniq.length < 2) { $('#cmpOut').innerHTML = '<p class="hint">Type two player names (autocomplete helps) and hit Compare.</p>'; return; }
+  const H = 5;
+  $('#cmpOut').innerHTML = uniq.map(p => {
+    const proj = []; for (let i = 0; i < H; i++) proj.push(projP(p, i));
+    const tot = proj.reduce((a, b) => a + b, 0);
+    const max = Math.max(...proj, 1);
+    const bars = proj.map((v, i) => `<div style="flex:1;text-align:center"><div style="height:${Math.round(34 * v / max)}px;background:linear-gradient(180deg,#00ff85,#0a8f52);border-radius:4px 4px 0 0" title="GW${DATA.fplmeta.current_gw + 1 + i}: ${v.toFixed(1)}"></div><div class="tk-opp">${(p.next3 || [])[i] ? (p.next3[i].opp + (p.next3[i].ha)) : 'GW' + (DATA.fplmeta.current_gw + 1 + i)}</div></div>`).join('');
+    const h = (DATA.history || {})[p.id] || [];
+    return `<div class="ml-rival" style="min-width:240px">
+      <h4>${esc(p.name)} ${posBadge(p.pos)} <span class="muted">${p.team} · £${p.cost}m</span></h4>
+      <div class="gapline">${p.pts} pts · form ${p.form} · ep ${p.ep_next} · xG ${p.xg} (${p.xg_diff >= 0 ? '+' : ''}${(p.xg_diff || 0).toFixed(1)}) · ${p.own}% own · team form #${formRank(p)}</div>
+      ${sparkSVG(p.id, 220, 40)}
+      <div style="display:flex;gap:3px;align-items:flex-end;height:52px;margin-top:8px">${bars}</div>
+      <div class="gapline" style="margin-top:6px">Next-5 projection: <b>${tot.toFixed(1)}</b> pts · adj FDR ${adjAvg3(p).toFixed(1)}</div>
+      ${h.length ? `<div class="tk-opp">last GWs: ${h.map(r => r[1] + 'pts').join(' · ')}</div>` : ''}
+    </div>`;
+  }).join('') + (() => {
+    const sorted = uniq.slice().sort((a, b) => { let sa = 0, sb = 0; for (let i = 0; i < H; i++) { sa += projP(a, i); sb += projP(b, i); } return sb - sa; });
+    let sa = 0, sb = 0; for (let i = 0; i < H; i++) { sa += projP(sorted[0], i); sb += projP(sorted[1], i); }
+    return `<div class="card" style="grid-column:1/-1"><p>🤖 Model edge over next 5: <b>${esc(sorted[0].name)}</b> by <b>+${(sa - sb).toFixed(1)}</b> projected pts${ML.ready ? ` — and ${ML.ownCount(sorted[0])}/${ML.n} of your rivals own him vs ${ML.ownCount(sorted[1])}/${ML.n} for ${esc(sorted[1].name)}` : ''}.</p></div>`;
+  })();
 }
 
 // tabs

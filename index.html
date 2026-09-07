@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 <header>
@@ -29,6 +29,8 @@
   <button class="tab" data-tab="wildcard">Wildcard Lab</button>
   <button class="tab" data-tab="assistant">🤖 Assistant</button>
   <button class="tab" data-tab="minileague">🏆 Mini League</button>
+  <button class="tab" data-tab="planner">📅 Planner</button>
+  <button class="tab" data-tab="compare">⚖️ Compare</button>
   <button class="tab" data-tab="radar">Transfer Radar</button>
   <button class="tab" data-tab="captain">Captain &amp; Prices</button>
   <button class="tab" data-tab="players">Players</button>
@@ -174,6 +176,35 @@
     <div id="mlRoad"></div>
   </section>
 
+  <section id="planner" class="panel">
+    <div class="card">
+      <h2>📅 Multi-GW Transfer Solver</h2>
+      <p class="hint">Plans your transfers across the next N gameweeks like the pro solvers (Solio / FPL-Review style): every candidate move is valued over the <b>whole remaining horizon</b> with the shared form-adjusted model, hits cost −4, free transfers accumulate, and captains + chip timing fall out of the same optimisation. Load your team in <b>My Team</b> first.</p>
+      <div class="entry-row">
+        <label class="muted">Horizon</label>
+        <select id="planHorizon"><option>3</option><option selected>4</option><option>5</option></select>
+        <button id="planSolve" class="btn">Solve my next GWs</button>
+      </div>
+    </div>
+    <div id="planOut"></div>
+    <div id="chipOpt"></div>
+  </section>
+
+  <section id="compare" class="panel">
+    <div class="card">
+      <h2>⚖️ Player Comparison Lab</h2>
+      <p class="hint">Head-to-head on season stats, per-GW history (green = points, blue dashed = xG+xA) and the model's next-5 projections with fixtures.</p>
+      <div class="entry-row">
+        <input id="cmpA" list="playerNames" placeholder="Player 1 (e.g. Saka)">
+        <input id="cmpB" list="playerNames" placeholder="Player 2 (e.g. Palmer)">
+        <input id="cmpC" list="playerNames" placeholder="Player 3 (optional)">
+        <button id="cmpGo" class="btn">Compare</button>
+      </div>
+      <datalist id="playerNames"></datalist>
+    </div>
+    <div id="cmpOut" class="ml-grid"></div>
+  </section>
+
   <section id="radar" class="panel">
     <p class="hint">Heuristic signals computed from the open dataset — xG regression, transfer momentum, differentials. Not financial advice 😉</p>
     <div class="grid2">
@@ -222,6 +253,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
