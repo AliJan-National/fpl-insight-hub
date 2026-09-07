@@ -242,6 +242,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
         <div class="sig-name">${esc(s.e.n)} ${posBadge(posName[s.pos])}
           <span class="team-tag">GW${f0.gw || firstGw}: ${f0.opp || '—'}(${f0.ha || '?'}) <span class="fdr f${f0.fdr || 3}">${f0.fdr || 3}</span></span></div>
         <div class="sig-reasons">${reasons.map(r => `<span class="reason">${esc(r)}</span>`).join('') || `<span class="reason">form ${frm}</span>`}</div>
+        ${ML.ready ? `<div class="sig-reasons">${ML.capLens(s)}</div>` : ''}
       </div>
       <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">cap score<br>form ${frm}</div></div>
     </div>`;
@@ -326,7 +327,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     <div class="sig-card">
       <div class="rank">${i + 1}</div>
       <div class="sig-info">
-        <div class="sig-name">${esc(p.name)} ${posBadge(p.pos)} <span class="team-tag">${p.team} · £${p.cost}m · ${p.own}% owned · form #${formRank(p)}</span></div>
+        <div class="sig-name">${esc(p.name)} ${posBadge(p.pos)} <span class="team-tag">${p.team} · £${p.cost}m · ${p.own}% owned · form #${formRank(p)}${ML.ready ? ' · ' + ML.ownCount(p) + '/' + ML.n + ' rivals own' : ''}</span></div>
         <div class="sig-reasons">
           <span class="reason">Next: ${p.next3.slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" style="margin:0 2px">${f.afdr ?? f.fdr}</span>`).join(' ') || '—'} · adj FDR ${avg.toFixed(1)}</span>
           <span class="reason">Form ${p.form} · ep ${p.ep_next}</span>
@@ -363,6 +364,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   // ---- hand context to the Assistant ----
   window.TEAMCTX = {
     squad, bank, maxFund, picksGw,
+    entryId: entry.id,
     entryName: entry.name,
     totalPts: eh.total_points ?? entry.summary_overall_points ?? 0,
     rank: eh.overall_rank || entry.summary_overall_rank || 0,
@@ -577,7 +579,12 @@ function renderWildcard() {
     const keep = all.filter(p => owned.has(p.name)).map(p => p.name);
     $('#wcOverlap').innerHTML = `<p class="hint">You already own <b>${keep.length}</b> of these 15:</p>
       <div class="sig-reasons">${keep.map(k => `<span class="reason">${esc(k)}</span>`).join('') || '<span class="reason">none</span>'}</div>
-      <div class="advice" style="margin-top:10px">${keep.length >= 8 ? 'Your squad is close to optimal — a wildcard may be wasted; target 1–2 upgrades instead.' : keep.length >= 5 ? 'A wildcard would change ~' + (15 - keep.length) + ' players — worth it if your bench is dead money.' : 'Your team diverges heavily from the optimal model — strong wildcard case.'}</div>`;
+      <div class="advice" style="margin-top:10px">${keep.length >= 8 ? 'Your squad is close to optimal — a wildcard may be wasted; target 1–2 upgrades instead.' : keep.length >= 5 ? 'A wildcard would change ~' + (15 - keep.length) + ' players — worth it if your bench is dead money.' : 'Your team diverges heavily from the optimal model — strong wildcard case.'}</div>
+      ${ML.ready ? (() => {
+        const wcp = Object.values(WC.pick).flat();
+        const d = wcp.filter(p => ML.ownCount(p) === 0).map(p => p.name);
+        return `<div class="advice" style="margin-top:8px">🏆 ML lens: rebuilding to this team gives you differentials none of your ${ML.n} rivals own: <b>${d.slice(0, 4).map(esc).join(', ') || '—'}</b>${keep.length >= 8 ? ' — but since rivals share your core, targeted transfers may beat a full wildcard.' : '.'}</div>`;
+      })() : ''}`;
   } else {
     $('#wcOverlap').innerHTML = '<p class="hint">Load your team in <b>My Team</b> to see how many of these you already own and whether a wildcard is worth it.</p>';
   }
@@ -675,8 +682,17 @@ function askAI(q) {
     ctx.squad.forEach(s => { if (s.t) g[s.t.code] = g[s.t.code] || { short: s.t.short, a5: s.a5 }; });
     return `Your clubs' next-5 difficulty (easiest first):<br>` + Object.values(g).sort((a, b) => a.a5 - b.a5).map(r => `<span class="mrow">• <b>${r.short}</b> — avg ${r.a5.toFixed(1)} ${r.a5 <= 2.2 ? '🟢' : r.a5 <= 3 ? '🟡' : '🔴'}</span>`).join('');
   }
+  if (/(mini|league|rival|beat the leader|win my)/.test(Q)) return mlSummary();
+  if (/\bhit\b|take a hit/.test(Q)) {
+    if (!ML.ready) return 'Load your mini league (🏆 tab) and I\'ll judge hits against your position — a -4 that\'s right in ATTACK mode can be wrong in DEFEND mode.';
+    return `🚨 Hit verdict: ${ML.hitText}`;
+  }
+  if (/chip battle|chips vs/.test(Q)) {
+    if (!ML.ready) return 'Load your mini league first to see the chip battle vs your rivals.';
+    return ALL_CHIPS.map(([k, l]) => `${l}: you ${ML.youChips.includes(k) ? '❌ used' : '✅ hold'} · main rival ${ML.prim && ML.prim.chips.includes(k) ? '❌ used' : '✅ hold'}`).join('<br>') + (ML.youChips.includes('3xc') && ML.prim && ML.prim.chips.includes('3xc') ? '<br>Both hold TC — timing is the weapon.' : '');
+  }
   if (pl) return scout(pl);
-  return `I can help with: <b>captain</b> picks, <b>sell/buy</b> advice (budget-aware), <b>bench</b> choices, <b>injuries</b>, <b>chips</b>, <b>fixtures</b>, any <b>player scout report</b> ("Haaland?"), "best DEF under 6m", or <b>wildcard</b> strategy. ${ctx ? '' : 'Tip: load your team in My Team for personalised answers.'}`;
+  return `I can help with: <b>captain</b> picks, <b>sell/buy</b> advice (budget-aware), <b>bench</b> choices, <b>injuries</b>, <b>chips</b>, <b>fixtures</b>, your <b>mini league</b> ("how do I win my mini league?", "should I take a hit?"), any <b>player scout report</b> ("Haaland?"), "best DEF under 6m", or <b>wildcard</b> strategy. ${ctx ? '' : 'Tip: load your team in My Team for personalised answers.'}`;
 }
 function chat(q) {
   const log = $('#chatLog');
@@ -691,6 +707,276 @@ $('#chatSend').onclick = () => { const v = $('#chatInput').value.trim(); if (v) 
 $('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#chatSend').click(); });
 $$('#quickQs .chip').forEach(c => c.onclick = () => chat(c.textContent));
 $('#chatLog').innerHTML = `<div class="msg bot">👋 I'm your <b>FPL Copilot</b>. I know the full 2026/27 dataset (653 players, fixtures, xG, prices) — and once you load your team in <b>My Team</b>, every answer becomes personal. Try the quick questions!</div>`;
+
+// ============ 🏆 MINI LEAGUE WINNING ENGINE (relative optimization) ============
+// Objective (per spec): maximise P(finish 1st in YOUR league), not raw points.
+const ML = window.ML = { ready: false };
+const FM = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
+const mlGw = () => DATA.fplmeta.current_gw || 3; // latest published picks (next-GW picks 404 until deadline)
+const mlCacheGet = k => { try { return JSON.parse(localStorage.getItem('ml_' + k)); } catch (e) { return null; } };
+const mlCacheSet = (k, v) => { try { localStorage.setItem('ml_' + k, JSON.stringify(v)); } catch (e) { } };
+
+async function mlFetchEntry(id) {
+  const ck = id + '_' + mlGw();
+  const c = mlCacheGet(ck);
+  if (c) return c;
+  const [picks, hist] = await Promise.all([
+    fplApi(`entry/${id}/event/${mlGw()}/picks/`),
+    fplApi(`entry/${id}/history/`),
+  ]);
+  const out = { picks, chips: (hist.chips || []).map(x => x.name) };
+  mlCacheSet(ck, out);
+  return out;
+}
+
+function mlSquadStats(picks, EL, TM) {
+  const start = [], bench = []; let cap = null, vice = null;
+  for (const r of picks.picks) {
+    const e = EL[r.element];
+    const tShort = e && TM[e.t] ? TM[e.t].short : null;
+    const rec = { id: r.element, e, tShort, ep: e ? (e.ep || 0) : 0 };
+    if (r.is_captain) cap = rec;
+    if (r.is_vice_captain) vice = rec;
+    (r.position <= 11 ? start : bench).push(rec);
+  }
+  const clubs = {}; start.forEach(x => { if (x.tShort) clubs[x.tShort] = (clubs[x.tShort] || 0) + 1; });
+  const adj = start.filter(x => x.tShort).map(x => (window.TF[x.tShort] || {}).af3 || 3);
+  return {
+    start, bench, cap, vice,
+    idsSet: new Set([...start, ...bench].map(x => x.id)),
+    startNames: start.filter(x => x.e).map(x => x.e.n),
+    mu: start.reduce((s, x) => s + x.ep, 0) + (cap ? cap.ep : 0) + 0.8,
+    clubMax: Math.max(0, ...Object.values(clubs)),
+    flagged: [...start, ...bench].filter(x => x.e && x.e.s && x.e.s !== 'a').length,
+    avgAdj3: adj.length ? adj.reduce((a, b) => a + b, 0) / adj.length : 3,
+    benchEp: bench.reduce((s, x) => s + x.ep, 0),
+  };
+}
+
+async function mlLoadLeague() {
+  const id = ($('#mlLeagueId').value || localStorage.getItem('mlLeague') || '').trim();
+  if (!id) { $('#mlStatus').textContent = 'Paste your mini-league ID first (from the league page URL).'; return; }
+  localStorage.setItem('mlLeague', id);
+  $('#mlStatus').textContent = 'Loading standings…';
+  try {
+    const st = await fplApi(`leagues-classic/${id}/standings/`);
+    ML.rows = st.standings.results; ML.leagueId = id;
+    const youId = window.TEAMCTX && window.TEAMCTX.entryId;
+    if (youId && ML.rows.some(r => r.id === youId)) { await mlBuild(youId); return; }
+    $('#mlYou').style.display = 'flex';
+    $('#mlYouSelect').innerHTML = ML.rows.map(r => `<option value="${r.id}">${esc(r.entry_name)} — ${r.total} pts (#${r.rank})</option>`).join('');
+    $('#mlYouSelect').onchange = () => mlBuild(+$('#mlYouSelect').value);
+    $('#mlStatus').textContent = `League loaded (${ML.rows.length} teams). Tip: load your team in My Team next time and I'll auto-detect you. Select your entry:`;
+  } catch (e) { $('#mlStatus').textContent = 'Could not load that league: ' + e.message; }
+}
+
+async function mlBuild(youId) {
+  $('#mlStatus').textContent = 'Scouting relevant rivals…';
+  const ids = await loadIds();
+  const sorted = ML.rows.slice().sort((a, b) => a.rank - b.rank);
+  const you = sorted.find(r => r.id === youId);
+  const curGw = DATA.fplmeta.current_gw, gwsLeft = Math.max(1, 38 - curGw);
+  const yi = sorted.findIndex(r => r.id === youId);
+  const rivals = [];
+  const push = r => { if (r && r.id !== youId && !rivals.includes(r)) rivals.push(r); };
+  push(sorted[0]);
+  for (let i = yi - 1; i >= 0 && rivals.length < 4; i--) push(sorted[i]);
+  for (let i = yi + 1; i < sorted.length && rivals.length < 6; i++) push(sorted[i]);
+
+  let youData;
+  try { youData = await mlFetchEntry(youId); } catch (e) { $('#mlStatus').textContent = 'That entry\'s lineup is private or unavailable — pick another entry (or load your team in My Team first).'; return; }
+  const EL = ids.elements, TM = ids.teams;
+  const youS = mlSquadStats(youData.picks, EL, TM);
+  const R = [];
+  for (const r of rivals) {
+    try {
+      const d = await mlFetchEntry(r.id);
+      R.push({ row: r, s: mlSquadStats(d.picks, EL, TM), chips: d.chips });
+    } catch (e) { /* skip unreachable rival */ }
+  }
+
+  const leader = sorted[0];
+  const gap = leader.total - you.total;
+  const above = sorted.slice(0, yi).slice(-1)[0] || leader;
+  const catchRate = gap / gwsLeft;
+  let mode;
+  if (you.rank === 1) mode = 'DEFEND';
+  else if (gap <= Math.max(10, gwsLeft)) mode = 'CONSOLIDATE';
+  else if (gap <= gwsLeft * 3) mode = 'ATTACK';
+  else mode = 'ALLIN';
+  const modeTxt = {
+    DEFEND: 'You lead (or the gap says protect). Minimise variance: template players, match dangerous captains, no needless differentials.',
+    CONSOLIDATE: 'Close enough to strike selectively: keep the template core, add 1–3 high-value differentials, differentiate captain only when the maths says so.',
+    ATTACK: 'Behind but catchable: target players your rivals do NOT own, exploit fixture swings, consider differential captains and strategic chips.',
+    ALLIN: 'Large gap, so safety will not win it: every recommendation maximises expected differential vs rivals — but each still has a football rationale, no gambling.',
+  }[mode];
+
+  const youChips = youData.chips;
+  const n = R.length || 1;
+  // shared / unique / captain exposure per rival
+  R.forEach(rv => {
+    rv.shared = [...rv.s.idsSet].filter(id => youS.idsSet.has(id)).length;
+    rv.onlyThem = [...rv.s.idsSet].filter(id => !youS.idsSet.has(id));
+    rv.onlyYou = [...youS.idsSet].filter(id => !rv.s.idsSet.has(id));
+  });
+  // threats: owned by many rivals, not by you
+  const cnt = {};
+  R.forEach(rv => rv.s.idsSet.forEach(id => { if (!youS.idsSet.has(id)) cnt[id] = (cnt[id] || 0) + 1; }));
+  const threats = Object.entries(cnt).map(([id, c]) => ({ id: +id, c, e: EL[+id] }))
+    .filter(t => t.e && t.c >= Math.max(2, Math.ceil(n / 2)))
+    .sort((a, b) => (b.e.ep || 0) - (a.e.ep || 0)).slice(0, 5);
+  // differentials: mini-league differential score (spec §6)
+  const youIds = youS.idsSet;
+  const diffs = DATA.players
+    .filter(p => p.status === 'a' && p.mins >= 60 && !youIds.has(p.id))
+    .map(p => {
+      const owned = R.filter(rv => rv.s.idsSet.has(p.id)).length;
+      const gapFrac = 1 - owned / n; // opponent exposure gap
+      const score = ((p.ep_next || 0) * 1.5 + (p.form || 0) * 0.8 + (3 - adjAvg3(p)) * 1.5 + ownForm(p) * 1.2) * (0.5 + gapFrac);
+      return { p, owned, score };
+    })
+    .sort((a, b) => b.score - a.score).slice(0, 5);
+  // captain engine (spec §10): safe / balanced / differential
+  const capCands = youS.start.filter(x => x.e).map(x => {
+    const na = ((window.TF[x.tShort] || {}).afx || [3])[0];
+    return { x, c: x.ep * (FM[Math.max(1, Math.min(5, Math.round(na)))] || 1) * (0.9 + 0.1 * ownForm({ team: x.tShort })) };
+  }).sort((a, b) => b.c - a.c).slice(0, 4);
+  capCands.forEach(cc => { cc.rivCap = R.filter(rv => rv.s.cap && rv.s.cap.id === cc.x.id).length; cc.cls = cc.rivCap >= 2 ? 'SAFE' : cc.rivCap === 1 ? 'BALANCED' : 'DIFFERENTIAL'; });
+  const capPick = mode === 'DEFEND' ? capCands.find(c => c.cls === 'SAFE') || capCands[0]
+    : mode === 'CONSOLIDATE' ? capCands.find(c => c.cls !== 'DIFFERENTIAL') || capCands[0]
+      : mode === 'ATTACK' ? (capCands.find(c => c.cls === 'DIFFERENTIAL' && c.x.ep >= 4) || capCands[0])
+        : (capCands.slice(1).find(c => c.cls === 'DIFFERENTIAL') || capCands[0]);
+  // transfer + hit verdict (spec §8-9)
+  const weakest = youS.start.slice().sort((a, b) => a.ep - b.ep)[0];
+  const funds = (window.TEAMCTX ? window.TEAMCTX.maxFund : 100);
+  const tgt = DATA.players
+    .filter(p => p.status === 'a' && p.mins >= 60 && !youIds.has(p.id) && p.cost <= funds)
+    .map(p => ({ p, owned: R.filter(rv => rv.s.idsSet.has(p.id)).length }))
+    .sort((a, b) => (b.p.ep_next + ownForm(b.p)) - (a.p.ep_next + ownForm(a.p)))[0];
+  const gain = tgt && weakest ? (tgt.p.ep_next || 0) - (weakest.ep || 0) : 0;
+  const hitYes = !!tgt && gain * Math.min(gwsLeft, 4) > 4 && mode !== 'DEFEND' && (1 - (tgt.owned / n)) >= 0.5;
+  const hitText = tgt ? (hitYes
+    ? `YES (mode ${mode}): ${esc(tgt.p.name)} over ${weakest.e ? weakest.e.n : 'weakest starter'} ≈ +${gain.toFixed(1)}/GW × ${Math.min(gwsLeft, 4)} GWs > 4-pt hit, and ${tgt.owned}/${n} rivals own him.`
+    : `NO — expected gain +${gain.toFixed(1)}/GW doesn't clear the -4 in ${mode} mode${tgt.owned / n >= 0.5 ? ', and rivals already own him (no edge)' : ''}. Save the transfer.`) : 'No affordable upgrade found.';
+  // chip battle vs primary rival (spec §12)
+  const prim = R[0];
+  // win probability (Monte Carlo, labelled estimate — spec §16)
+  function randn() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function winProb(muAdj, sd) {
+    const N = 1200; let w = 0;
+    for (let i = 0; i < N; i++) {
+      const uFin = you.total + (youS.mu + muAdj) * gwsLeft + randn() * sd * Math.sqrt(gwsLeft);
+      let best = uFin;
+      for (const rv of R) {
+        const f = rv.row.total + rv.s.mu * gwsLeft + randn() * 10 * Math.sqrt(gwsLeft);
+        if (f > best) best = f;
+      }
+      if (best === uFin) w++;
+    }
+    return Math.round(100 * w / N);
+  }
+  const probs = { Safe: winProb(-0.4, 8.5), Balanced: winProb(0.6, 10), Aggressive: winProb(1.6, 12.5) };
+  const bestProb = Object.entries(probs).sort((a, b) => b[1] - a[1])[0];
+
+  Object.assign(ML, {
+    ready: true, you, youS, R, leader, gap, catchRate, gwsLeft, mode, modeTxt, n,
+    threats, diffs, capCands, capPick, tgt, gain, hitText, probs, prim,
+    youChips, sorted,
+    ownCount: p => R.filter(rv => rv.s.idsSet.has(p.id)).length,
+    capLens: s => {
+      const cc = capCands.find(c => c.x.id === ((s.r && s.r.element) || s.id));
+      if (!cc) return '';
+      return `<span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">captained by ${cc.rivCap}/${n} rivals</span>`;
+    },
+  });
+
+  // ---------- render ----------
+  const tiles = (v, k) => `<div class="tstat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  $('#mlCmd').innerHTML = `<div class="card"><h2>🎯 Command Center — GW${mlGw()}</h2>
+    <div class="team-stats">
+      ${tiles('#' + you.rank, 'League rank')}${tiles(you.total, 'Your points')}
+      ${tiles(esc(leader.entry_name), leader.id === youId ? 'Leader (you!)' : 'Leader')}
+      ${tiles((gap > 0 ? '-' : '+') + Math.abs(gap), 'Gap to leader')}
+      ${tiles(gwsLeft, 'GWs left')}${tiles('~' + catchRate.toFixed(1), 'pts/GW needed')}
+    </div>
+    <p style="margin:10px 0 4px"><span class="mode-badge mode-${mode === 'ALLIN' ? 'ALLIN' : mode}">${mode === 'ALLIN' ? 'ALL-IN' : mode}</span>
+    <span class="muted" style="margin-left:10px">${modeTxt}</span></p>
+    <p class="muted">Win-probability estimate (Monte-Carlo, indicative): Safe <b>${probs.Safe}%</b> · Balanced <b>${probs.Balanced}%</b> · Aggressive <b>${probs.Aggressive}%</b> → engine recommends <b>${bestProb[0]}</b>.</p>
+  </div>`;
+
+  const weak = rv => {
+    const w = [];
+    if (rv.s.avgAdj3 >= 3.2) w.push(`tough fixtures (adj FDR ${rv.s.avgAdj3.toFixed(1)})`);
+    if (rv.s.flagged) w.push(`${rv.s.flagged} flagged player${rv.s.flagged > 1 ? 's' : ''}`);
+    if (rv.s.clubMax >= 4) w.push(`over-invested in one club (${rv.s.clubMax})`);
+    if (rv.s.benchEp <= 6) w.push('weak bench');
+    if (!rv.s.start.some(x => ((window.TF[x.tShort] || {}).rank || 99) <= 3)) w.push('no exposure to top-3 form teams');
+    if (youChips.length > rv.chips.length) w.push('fewer chips left than you');
+    return w.length ? w.join(' · ') : 'no obvious weakness — win on captaincy';
+  };
+  $('#mlBeat').innerHTML = you.rank === 1 ? `<div class="card"><h2>🛡️ Defend My Lead</h2>
+    <p>Nearest chaser: <b>${esc((sorted[1] || {}).entry_name || '—')}</b>, ${(you.total - (sorted[1] || { total: you.total }).total)} pts behind.</p>
+    <p class="muted">Threat players (owned by chasers, not you): ${threats.map(t => `<b>${esc(t.e.n)}</b> (${t.c}/${n})`).join(', ') || 'none — your differentials are working'}.</p>
+    <p class="muted">Match their captain when ${capCands[0] ? esc(capCands[0].x.e.n) + ' is the field-safe pick' : 'the safe pick scores highest'}; stay template-heavy; only chase differentials your chasers can't copy in one transfer.</p>
+  </div>` : `<div class="card"><h2>⚔️ How To Beat ${esc(leader.entry_name)}</h2>
+    <p>Gap <b>${gap}</b> pts over <b>${gwsLeft}</b> GWs → need ≈ <b>${catchRate.toFixed(1)}</b> pts/GW edge. Leader's XI: ${R[0] ? R[0].s.startNames.slice(0, 6).map(esc).join(', ') + '…' : '—'}</p>
+    <p class="muted">Leader's weakness: ${R[0] ? weak(R[0]) : '—'}. Your edge: ${diffs[0] ? `<b>${esc(diffs[0].p.name)}</b> (${diffs[0].p.own}% owned, ${diffs[0].owned}/${n} rivals have him)` : '—'}.</p>
+  </div>`;
+
+  $('#mlChips').innerHTML = prim ? `<div class="card"><h2>🃏 Chip Battle vs ${esc(prim.row.entry_name)}</h2>
+    <table class="data"><tr><th>Chip</th><th>You</th><th>Them</th><th>Advantage</th></tr>
+    ${ALL_CHIPS.map(([k, l]) => {
+    const u = !youChips.includes(k), o = !prim.chips.includes(k);
+    return `<tr><td>${l}</td><td>${u ? '✅' : '❌'}</td><td>${o ? '✅' : '❌'}</td><td>${u && !o ? '<b class="up">You</b>' : !u && o ? '<b class="down">Them</b>' : 'Neutral'}</td></tr>`;
+  }).join('')}</table>
+    <p class="muted">${youChips.includes('3xc') && prim.chips.includes('3xc') ? 'Both hold Triple Captain — save it for a GW where your captain is a differential.' : youChips.includes('3xc') && !prim.chips.includes('3xc') ? 'You hold TC and they don\'t — a strategic weapon: use it on a differential captain week.' : 'Chip parity — timing, not stock, will decide it.'}</p>
+  </div>` : '';
+
+  $('#mlRivals').innerHTML = `<div class="card"><h2>🕵️ Relevant Rivals (relative analysis)</h2><p class="muted">Lineups = latest published picks; rival captains for GW${mlGw() + 1} are unknowable until deadline, so captaincy threats reflect their latest choice.</p><div class="ml-grid">
+    ${R.map(rv => `<div class="ml-rival"><h4>${esc(rv.row.entry_name)} <span class="muted">#${rv.row.rank}</span></h4>
+      <div class="gapline">${rv.row.total - you.total >= 0 ? '+' : ''}${rv.row.total - you.total} pts vs you · GW${mlGw() - 1}: ${rv.row.event_total ?? '—'} · cap: <b>${rv.s.cap && rv.s.cap.e ? esc(rv.s.cap.e.n) : '—'}</b></div>
+      <div class="gapline">Shared ${rv.shared} · theirs-only ${rv.onlyThem.length} · yours-only ${rv.onlyYou.length}</div>
+      <div class="gapline">Beat them via: ${weak(rv)}</div>
+    </div>`).join('')}
+  </div></div>`;
+
+  $('#mlCap').innerHTML = `<div class="card"><h2>👑 Captaincy — ML lens</h2>
+    ${capCands.map((cc, i) => `<span class="mrow">${i + 1}. <b>${esc(cc.x.e.n)}</b> ep ${cc.x.ep.toFixed(1)} <span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">${cc.rivCap}/${n} rivals captain him</span></span><br>`).join('')}
+    <p style="margin-top:6px">Engine pick for <b>${mode}</b> mode: <b>${esc(capPick.x.e.n)}</b> — ${capPick.cls === 'SAFE' ? 'matching the field protects your position.' : capPick.cls === 'BALANCED' ? 'solid points with a slight edge over some rivals.' : 'the upside edge your gap requires; rivals won\'t match it.'}</p>
+  </div>`;
+
+  $('#mlDiff').innerHTML = `<div class="card"><h2>💎 Mini-League Differentials & ⚠️ Threats</h2>
+    ${diffs.map(d => `<span class="mrow">• <b>${esc(d.p.name)}</b> (${d.p.team}, ${d.p.own}% owned, <b>${d.owned}/${n} rivals</b>) — ep ${d.p.ep_next}, adj FDR ${adjAvg3(d.p).toFixed(1)}, ML-score ${d.score.toFixed(1)}</span><br>`).join('')}
+    <p class="muted" style="margin-top:6px">Threats (haul = you lose ground): ${threats.map(t => `<b>${esc(t.e.n)}</b> (${t.c}/${n} rivals, not you)`).join(' · ') || 'none significant'}. ${mode === 'DEFEND' ? 'In DEFEND mode, consider matching the biggest threat.' : 'Differentials above are how you swing points they can\'t copy.'}</p>
+  </div>`;
+
+  $('#mlMove').innerHTML = `<div class="card"><h2>🔄 Transfer & Hit Verdict</h2>
+    <p>${tgt ? `Best ML transfer: <b>${weakest && weakest.e ? esc(weakest.e.n) : '—'} → ${esc(tgt.p.name)}</b> (+${gain.toFixed(1)} ep/GW, ${tgt.owned}/${n} rivals own him, adj FDR ${adjAvg3(tgt.p).toFixed(1)}).` : 'No transfer beats standing pat this week.'}</p>
+    <p>🚨 Hit? <b>${hitYes ? 'YES' : 'NO'}</b> — ${hitText}</p>
+  </div>`;
+
+  const riskEm = { DEFEND: '🟢 low', CONSOLIDATE: '🟡 medium', ATTACK: '🟠 high', ALLIN: '🔴 extreme' }[mode];
+  $('#mlRoad').innerHTML = `<div class="card"><h2>🗺️ GW Roadmap (updates weekly)</h2>
+    ${[0, 1, 2].map(i => {
+      const g = curGw + 1 + i;
+      const obj = i === 0 ? `Close ~${Math.min(Math.max(1, Math.round(catchRate)), 6)} pts of the gap` : i === 1 ? (mode === 'DEFEND' ? 'Maintain lead, avoid swings' : 'Keep pressure on') : 'Re-assess after deadline — plan is dynamic';
+      return `<span class="mrow"><b>GW${g}</b> — ${obj} · captain style: <span class="capclass cap-${i === 2 ? 'BALANCED' : capPick.cls}">${i === 2 ? 'TBD' : capPick.cls}</span> · risk ${riskEm}${i === 1 && mode !== 'DEFEND' && youChips.length ? ' · chip candidate if fixtures align' : ''}</span><br>`;
+    }).join('')}
+    <p class="muted">The roadmap re-computes every gameweek from fresh data — never treat it as a promise.</p>
+  </div>`;
+
+  $('#mlStatus').textContent = `Ready — studying ${R.length} relevant rivals around #${you.rank}.`;
+}
+$('#mlLoad').onclick = mlLoadLeague;
+
+function mlSummary() {
+  if (!ML.ready) return 'Open the 🏆 Mini League tab and load your league ID first — then every answer here factors your rivals.';
+  const m = ML;
+  return `🏆 <b>Mini League:</b> you're #${m.you.rank}, ${m.gap} pts off ${esc(m.leader.entry_name)} with ${m.gwsLeft} GWs left (~${m.catchRate.toFixed(1)}/GW needed) → mode <b>${m.mode}</b>.<br>
+  <span class="mrow">👑 Captain: <b>${esc(m.capPick.x.e.n)}</b> (${m.capPick.cls}).</span><br>
+  <span class="mrow">🔄 Move: ${m.tgt ? `${m.tgt.p.name} in (${m.gain >= 0 ? '+' : ''}${m.gain.toFixed(1)}/GW, ${m.tgt.owned}/${m.n} rivals own)` : 'hold'} · Hit: ${m.hitText.startsWith('YES') ? 'YES' : 'NO'}.</span><br>
+  <span class="mrow">💎 Differential: ${m.diffs[0] ? `${m.diffs[0].p.name} (${m.diffs[0].owned}/${m.n} rivals)` : '—'} · Win prob ≈ ${m.probs.Safe}/${m.probs.Balanced}/${m.probs.Aggressive}% (safe/bal/agg).</span>`;
+}
 
 // tabs
 $$('.tab').forEach(t => t.onclick = () => {

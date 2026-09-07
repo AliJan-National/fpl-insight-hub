@@ -176,6 +176,22 @@ footer { text-align: center; color: var(--muted); font-size: 11.5px; padding: 24
 .swing-bad { color: var(--red); font-weight: 700; }
 .fx-gw { font-style: normal; color: var(--muted); font-size: 9px; vertical-align: super; margin-right: 1px; }
 
+/* mini league */
+.mode-badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 800; letter-spacing: .5px; font-size: 13px; }
+.mode-DEFEND { background: #8ef0a6; color: #0b2416; }
+.mode-CONSOLIDATE { background: #ffd94d; color: #241c02; }
+.mode-ATTACK { background: #ffb35c; color: #241202; }
+.mode-ALLIN { background: #ff5575; color: #fff; }
+.ml-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 14px 0; }
+.ml-rival { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel2, rgba(255,255,255,.03)); }
+.ml-rival h4 { margin: 0 0 6px; }
+.ml-rival .gapline { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.capclass { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
+.cap-SAFE { background: #8ef0a6; color: #0b2416; }
+.cap-BALANCED { background: #ffd94d; color: #241c02; }
+.cap-DIFFERENTIAL { background: #ff8b5c; color: #241202; }
+#mlChips table td, #mlChips table th { text-align: center; }
+
 /* season ticker */
 .ticker-wrap { overflow-x: auto; }
 #tickerTable { min-width: 1150px; }

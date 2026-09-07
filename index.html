@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 <header>
@@ -28,6 +28,7 @@
   <button class="tab" data-tab="myteam">My Team</button>
   <button class="tab" data-tab="wildcard">Wildcard Lab</button>
   <button class="tab" data-tab="assistant">🤖 Assistant</button>
+  <button class="tab" data-tab="minileague">🏆 Mini League</button>
   <button class="tab" data-tab="radar">Transfer Radar</button>
   <button class="tab" data-tab="captain">Captain &amp; Prices</button>
   <button class="tab" data-tab="players">Players</button>
@@ -140,12 +141,37 @@
         <button class="chip">Any injury worries?</button>
         <button class="chip">Who to bench?</button>
         <button class="chip">Rate my team</button>
+        <button class="chip">How do I win my mini league?</button>
       </div>
       <div class="entry-row" style="margin-top:10px">
         <input id="chatInput" type="text" placeholder="Ask anything: 'should I sell Thiago?', 'Haaland fixtures?', 'best DEF under 6m'…">
         <button id="chatSend" class="btn">Ask</button>
       </div>
     </div>
+  </section>
+
+  <section id="minileague" class="panel">
+    <div class="card">
+      <h2>🏆 Mini League Command Center</h2>
+      <p class="hint">Loads your mini-league through your proxy, studies the rivals that actually matter (leader, teams just above/below you), and switches strategy automatically: <b>DEFEND · CONSOLIDATE · ATTACK · ALL-IN</b> — every captain, transfer, differential, hit and chip call is then judged by one question: <i>does it raise my chance of finishing 1st?</i></p>
+      <div class="entry-row">
+        <input id="mlLeagueId" type="text" placeholder="Mini-league ID (league page URL → …/leagues/{id}/standings/)">
+        <button id="mlLoad" class="btn">Load league</button>
+      </div>
+      <p id="mlStatus" class="muted" style="margin:8px 0 0"></p>
+      <div id="mlYou" class="entry-row" style="display:none; margin-top:8px">
+        <label class="muted">Which entry is you?</label>
+        <select id="mlYouSelect"></select>
+      </div>
+    </div>
+    <div id="mlCmd"></div>
+    <div id="mlBeat"></div>
+    <div id="mlChips"></div>
+    <div id="mlRivals"></div>
+    <div id="mlCap"></div>
+    <div id="mlDiff"></div>
+    <div id="mlMove"></div>
+    <div id="mlRoad"></div>
   </section>
 
   <section id="radar" class="panel">
@@ -196,6 +222,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
