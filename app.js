@@ -23,7 +23,7 @@ function renderAll() {
   // single team-form model shared by every tab (same numbers as the Fixtures ticker)
   window.TF = Object.fromEntries((DATA.teams || []).map(t => [t.short, t]));
   (DATA.players || []).forEach(p => {
-    p.ep_next = p.ep_next ?? p.ep ?? 0; // official expected points, normalised field name
+    p.ep_next = p.ep_next ?? 0; // official expected points (NEVER fall back to p.ep = last-GW event_points)
     const a = (window.TF[p.team] || {}).afx || [];
     (p.next3 || []).forEach((f, i) => {
       if (a[i] != null) { f.adjv = a[i]; f.afdr = Math.max(1, Math.min(5, Math.round(a[i]))); }
@@ -33,12 +33,15 @@ function renderAll() {
   window.ownForm = p => (window.TF[p.team] || {}).tf ?? 1;
   window.formRank = p => (window.TF[p.team] || {}).rank || 10;
   window.NEXT_BY_CODE = (DATA.fplmeta && DATA.fplmeta.fixtures_by_code) || window.NEXT3_BY_CODE;
-  renderLeague(); renderTopScorers(); renderResults();
-  renderRadar(); renderPlayers(); renderFixtures(); renderNews();
+  // v9: one failing tab must never break the buttons wired below or the other tabs
+  const safe = (fn, name) => { try { fn(); } catch (e) { console.error('[renderAll]', name, e); } };
+  safe(renderLeague, 'league'); safe(renderTopScorers, 'topScorers'); safe(renderResults, 'results');
+  safe(renderRadar, 'radar'); safe(renderPlayers, 'players'); safe(renderFixtures, 'fixtures'); safe(renderNews, 'news');
   $('#playerNames').innerHTML = DATA.players.map(p => `<option value="${esc(p.name)}">`).join('');
-  $('#cmpGo').onclick = renderCompare;
-  $('#planSolve').onclick = solvePlan;
-  renderCaptains(); renderPrices();
+  $('#cmpGo').onclick = () => { try { renderCompare(); } catch (e) { console.error('[compare]', e); $('#cmpOut').innerHTML = '<p class="hint">⚠️ Compare failed: ' + esc(e.message) + '</p>'; } };
+  $('#planSolve').onclick = () => { try { solvePlan(); } catch (e) { console.error('[solvePlan]', e); $('#planOut').innerHTML = '<div class="card"><p class="hint">⚠️ Solver error: <b>' + esc(e.message) + '</b>. Reload My Team and try again.</p></div>'; } };
+  $('#wcHorizon').onchange = () => { WC_H = +$('#wcHorizon').value || 3; WC = null; renderWildcard(); };
+  safe(renderCaptains, 'captains'); safe(renderPrices, 'prices');
 }
 
 // ============ Captain & Prices ============
@@ -150,8 +153,10 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   // next-fixture maps per team code (3 and 5 lookahead)
   const flags = DATA.fplmeta.schedule_flags || {};
   const NEXT = window.NEXT_BY_CODE || {};
+  // v9: NEXT is keyed by team CODE but the catalog by team ID — map codes correctly (was: wrong team's form shift)
+  const teamByCode = {}; Object.values(teamById).forEach(t => { if (t && t.code != null) teamByCode[t.code] = t; });
   Object.entries(NEXT).forEach(([code, arr]) => {
-    const t = teamById[code]; const a = (window.TF[t && t.short] || {}).afx || [];
+    const t = teamByCode[code] || teamById[code]; const a = (window.TF[t && t.short] || {}).afx || [];
     (arr || []).forEach((f, i) => { if (a[i] != null) { f.adjv = a[i]; f.afdr = Math.max(1, Math.min(5, Math.round(a[i]))); } });
   });
 
@@ -513,7 +518,13 @@ function renderNews() {
 // ============ Wildcard Lab ============
 const avgN = (arr, n) => { const a = (arr || []).slice(0, n); return a.length ? a.reduce((s, f) => s + f.fdr, 0) / a.length : 3; };
 // same inputs as the Fixtures ticker: player form + expected points + form-adjusted FDR + own-team performance rank
-const pScore = (p) => (p.form || 0) * 1.2 + (p.ep_next || 0) * 1.5 + (3 - adjAvg3(p)) * 1.5 + ownForm(p) * 1.5 + (p.pos === 'DEF' ? Math.min(2, (p.cbit || 0) * 0.05) : 0);
+// horizon-aware wildcard score: sums model projections over the selected window (3 or 5 GW)
+let WC_H = 3;
+const pScore = (p) => {
+  let s = 0;
+  for (let i = 0; i < WC_H; i++) s += projP(p, i);
+  return s + ownForm(p) * 0.6 + (p.pos === 'DEF' ? Math.min(2, (p.cbit || 0) * 0.05) * WC_H * 0.25 : 0);
+};
 let WC = null;
 function buildWildcard() {
   const BUDGET = 100.0, need = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
@@ -556,7 +567,7 @@ function renderWildcard() {
   if (!WC) buildWildcard();
   const fdrM = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
   const all = Object.values(WC.pick).flat().sort((a, b) => pScore(b) - pScore(a));
-  $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · spend £${WC.spent.toFixed(1)}m of £100m · built on the same performance model as the Fixtures ticker`;
+  $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · ${WC_H}-GW fixture window · spend £${WC.spent.toFixed(1)}m of £100m · same model as the Fixtures ticker`;
   $('#wcSummary').innerHTML = `<div class="team-stats">
     <div class="tstat"><div class="v">£${WC.spent.toFixed(1)}m</div><div class="k">Total spend</div></div>
     <div class="tstat"><div class="v">${(100 - WC.spent).toFixed(1)}</div><div class="k">£m left in bank</div></div>
@@ -571,12 +582,13 @@ function renderWildcard() {
       <span class="fix">${(p.next3 || []).slice(0, 3).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" style="margin:0 2px" title="form-adjusted ${f.adjv ?? f.fdr} (base FDR ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')} · team #${formRank(p)}</span>
       <span class="team-tag">form ${p.form}</span><b class="pts">${p.pts}</b><span class="team-tag">£${p.cost}m</span>
     </div>`).join('')).join('');
-  const caps = all.map(p => ({ p, c: (p.ep_next || 0) * (fdrM[((p.next3 || [])[0] || {}).afdr ?? ((p.next3 || [])[0] || {}).fdr ?? 3] || 1) * (0.9 + 0.1 * ownForm(p)) })).sort((a, b) => b.c - a.c);
+  const caps = all.map(p => ({ p, c: projP(p, 0) * (0.5 + 0.5 * reliab(p)) })).sort((a, b) => b.c - a.c);
   $('#wcCaptain').innerHTML = caps.slice(0, 2).map((x, i) => `
     <div class="sig-card"><div class="rank">${i ? 'V' : 'C'}</div>
-      <div class="sig-info"><div class="sig-name">${esc(x.p.name)} ${posBadge(x.p.pos)} <span class="team-tag">${x.p.team} · ${((x.p.next3 || [])[0] || {}).opp || '—'}(${((x.p.next3 || [])[0] || {}).ha || '?'})</span></div>
-      <div class="sig-meta">ep ${x.p.ep_next} · adj FDR ${((x.p.next3 || [])[0] || {}).afdr ?? ((x.p.next3 || [])[0] || {}).fdr ?? 3} · team #${formRank(x.p)}</div></div>
-      <div class="sig-pts"><div class="pts">${x.c.toFixed(1)}</div></div></div>`).join('');
+      <div class="sig-info"><div class="sig-name">${esc(x.p.name)} ${posBadge(x.p.pos)} <span class="team-tag">${x.p.team} · ${((x.p.next3 || [])[0] || {}).opp || '—'}(${((x.p.next3 || [])[0] || {}).ha || '?'}) · reliability ${(reliab(x.p) * 100) | 0}%</span></div>
+      <div class="sig-meta">GW ep-blend ${projP(x.p, 0).toFixed(1)} · adj FDR ${((x.p.next3 || [])[0] || {}).afdr ?? ((x.p.next3 || [])[0] || {}).fdr ?? 3} · team #${formRank(x.p)}</div></div>
+      <div class="sig-pts"><div class="pts">${x.c.toFixed(1)}</div></div></div>`).join('') +
+    '<p class="hint" style="margin-top:6px">Captaincy is reliability-weighted: one-week wonders (big form from a single haul) are discounted vs proven output (xG involvement per 90).</p>';
   const ctx = window.TEAMCTX;
   if (ctx) {
     const owned = new Set(ctx.squad.map(s => s.e && s.e.n));
@@ -993,14 +1005,43 @@ function mlSummary() {
 }
 
 // ============ 📅 PRO SUITE: projections · multi-GW solver · chips · compare · sparklines ============
-// per-GW model projection: official ep_next × form-adjusted FDR (shared model) × H/A × minutes probability
+// Reliability: punishes one-week wonders (form spike vs season avg) and rewards real underlying output (xGI/90).
+const REL_MEMO = {};
+function reliab(p) {
+  if (REL_MEMO[p.id] != null) return REL_MEMO[p.id];
+  const h = (DATA.history || {})[p.id] || [];
+  let r = 0.7;
+  if (h.length) {
+    let mins = 0, xgi = 0, pts = 0, mx = 0;
+    h.forEach(x => { mins += x[4]; xgi += x[2] + x[3]; pts += x[1]; mx = Math.max(mx, x[1]); });
+    const per90 = mins >= 60 ? (xgi / mins) * 90 : 0;
+    const xgiTerm = Math.min(1, per90 / 0.7);
+    const minsTerm = Math.min(1, mins / 270);
+    const levelTerm = Math.min(1, (pts / h.length) / 6);
+    // GK/DEF earn via clean sheets & defensive work, not xGI — weight minutes + level instead
+    r = (p.pos === 'GK' || p.pos === 'DEF')
+      ? 0.20 * xgiTerm + 0.40 * minsTerm + 0.40 * levelTerm
+      : 0.45 * xgiTerm + 0.35 * minsTerm + 0.20 * levelTerm;
+    // one-week-wonder penalty: season total concentrated in ONE gameweek AND underlying xGI doesn't back it
+    if (pts > 0 && h.length >= 2) {
+      const conc = mx / pts;
+      r *= 1 - 0.45 * Math.max(0, conc - 0.6) / 0.4 * (1 - xgiTerm);
+    }
+    r = Math.max(0.25, Math.min(1, r));
+  }
+  REL_MEMO[p.id] = r;
+  return r;
+}
+
+// per-GW model projection: blend(official ep, form) × form-adjusted FDR × H/A × minutes × reliability
 const projP = (p, i) => {
   const t = window.TF[p.team] || {};
   const a = (t.afx || [3, 3, 3, 3, 3, 3, 3])[i] ?? 3;
   const f = (p.next3 || [])[i] || null;
   const ha = f ? f.ha : null;
   const minProb = p.status !== 'a' ? 0.3 : Math.min(1, 0.5 + 0.5 * ((p.mins || 0) / 270));
-  return (p.ep_next || 0) * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb;
+  const base = 0.55 * (p.ep_next || 0) + 0.45 * (p.form || 0);
+  return base * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
 function startersAt(squad, i) {
@@ -1039,48 +1080,63 @@ function sparkSVG(id, w = 110, h = 30) {
 }
 
 function solvePlan() {
-  const ctx = window.TEAMCTX;
-  if (!ctx) {
-    $('#planOut').innerHTML = '<div class="card"><p class="hint">Load your team in <b>My Team</b> first — the solver plans <b>your</b> squad, bank and free transfers.</p></div>';
-    $('#chipOpt').innerHTML = '';
-    return;
-  }
-  const H = +$('#planHorizon').value;
-  let squad = ctx.squad.map(s => DATA.players.find(p => p.id === s.r.element)).filter(Boolean);
-  let bank = ctx.bank, ft = 1;
-  const rows = [];
-  const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
-  for (let i = 0; i < H; i++) {
-    const rem = H - i;
-    const base = teamProjAt(squad, i);
-    let best = { val: 0.0, act: null };
-    const outs = squad.slice().sort((a, b) => hSumP(a, rem) - hSumP(b, rem)).slice(0, 6);
-    const ins = pool.filter(p => !squad.includes(p)).sort((a, b) => hSumP(b, rem) - hSumP(a, rem)).slice(0, 16);
-    for (const out of outs) for (const inn of ins) {
-      if (inn.cost > bank + out.cost + 0.1 || !shapeOK(squad, out, inn)) continue;
-      const sq2 = squad.map(p => (p === out ? inn : p));
-      let val = teamProjAt(sq2, i) - base;
-      if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(squad, i + 1));
-      if (ft <= 0) val -= 4;
-      if (val > best.val + 0.25) best = { val, act: { out, inn } };
+  const out = $('#planOut');
+  try {
+    const ctx = window.TEAMCTX;
+    if (!ctx || !ctx.squad || !ctx.squad.length) {
+      out.innerHTML = '<div class="card"><p class="hint">Load your team in <b>My Team</b> first — the solver plans <b>your</b> squad, bank and free transfers.</p></div>';
+      $('#chipOpt').innerHTML = '';
+      return;
     }
-    const hit = !!best.act && ft <= 0;
-    if (best.act) { bank += best.act.out.cost - best.act.inn.cost; squad = squad.map(p => (p === best.act.out ? best.act.inn : p)); ft = Math.max(0, ft - 1); }
-    else ft = Math.min(5, ft + 1);
-    const st = startersAt(squad, i);
-    const cap = st.slice().sort((a, b) => projP(b, i) - projP(a, i))[0];
-    rows.push({ gw: DATA.fplmeta.current_gw + 1 + i, act: best.act, hit, cap, proj: teamProjAt(squad, i), ft });
-  }
-  const tot = rows.reduce((s, r) => s + r.proj, 0);
-  $('#planOut').innerHTML = `<div class="card"><h2>🧾 Optimal ${H}-GW plan · projected ≈ ${tot.toFixed(1)} pts</h2>
+    out.innerHTML = '<div class="card"><p class="hint">🧮 Solving your optimal transfers…</p></div>';
+    const H = +$('#planHorizon').value || 4;
+    const byName = {}; DATA.players.forEach(p => { byName[p.name] = p; });
+    let squad = ctx.squad.map(s => DATA.players.find(p => p.id === s.r.element) || (s.e && byName[s.e.n])).filter(Boolean);
+    if (squad.length < 11) {
+      out.innerHTML = `<div class="card"><p class="hint">⚠️ Only matched <b>${squad.length}/15</b> of your squad to the player database — your team has players newer than this data snapshot. Reload <b>My Team</b> and try again, or ask the Copilot for transfer advice meanwhile.</p></div>`;
+      $('#chipOpt').innerHTML = '';
+      return;
+    }
+    let bank = ctx.bank, ft = 1;
+    const rows = [];
+    const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
+    for (let i = 0; i < H; i++) {
+      const rem = H - i;
+      const base = teamProjAt(squad, i);
+      let best = { val: 0.0, act: null };
+      const outs = squad.slice().sort((a, b) => hSumP(a, rem) - hSumP(b, rem)).slice(0, 6);
+      const ins = pool.filter(p => !squad.includes(p)).sort((a, b) => hSumP(b, rem) - hSumP(a, rem)).slice(0, 16);
+      for (const out of outs) for (const inn of ins) {
+        if (inn.cost > bank + out.cost + 0.1 || !shapeOK(squad, out, inn)) continue;
+        const sq2 = squad.map(p => (p === out ? inn : p));
+        let val = teamProjAt(sq2, i) - base;
+        if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(squad, i + 1));
+        if (ft <= 0) val -= 4;
+        if (val > best.val + 0.25) best = { val, act: { out, inn } };
+      }
+      const hit = !!best.act && ft <= 0;
+      if (best.act) { bank += best.act.out.cost - best.act.inn.cost; squad = squad.map(p => (p === best.act.out ? best.act.inn : p)); ft = Math.max(0, ft - 1); }
+      else ft = Math.min(5, ft + 1);
+      const st = startersAt(squad, i);
+      const cap = st.slice().sort((a, b) => projP(b, i) - projP(a, i))[0];
+      rows.push({ gw: DATA.fplmeta.current_gw + 1 + i, act: best.act, hit, cap, proj: teamProjAt(squad, i), ft });
+    }
+    const tot = rows.reduce((s, r) => s + r.proj, 0);
+    out.innerHTML = `<div class="card"><h2>🧾 Optimal ${H}-GW plan · projected ≈ ${tot.toFixed(1)} pts</h2>
     <table class="data"><tr><th>GW</th><th>Move</th><th>Captain</th><th class="num">Proj XI+cap</th><th>FT left</th></tr>
     ${rows.map(r => `<tr><td><b>GW${r.gw}</b></td>
       <td>${r.act ? `<span class="down">− ${esc(r.act.out.name)}</span> → <span class="up">+ ${esc(r.act.inn.name)}</span>${r.hit ? ' <b class="down">(hit −4)</b>' : ''}</td>` : 'Roll (save FT)'}</td>
       <td><b>${r.cap ? esc(r.cap.name) : '—'}</b></td><td class="num">${r.proj.toFixed(1)}</td><td class="num">${r.ft}</td></tr>`).join('')}
     </table>
-    <p class="muted">Projections use the shared form-adjusted model (ep × adj FDR × home/away × minutes). Re-solve after every deadline — plans are dynamic, not promises.</p></div>`;
-  chipOptimizer(squad, H);
+    <p class="muted">Projections use the shared form-adjusted model (ep × adj FDR × home/away × minutes × reliability). Re-solve after every deadline — plans are dynamic, not promises.</p></div>`;
+    chipOptimizer(squad, H);
+  } catch (e) {
+    console.error('[solvePlan]', e);
+    out.innerHTML = `<div class="card"><p class="hint">⚠️ The solver hit an error: <b>${esc(e.message || e)}</b>.<br>Fix: reload your team in <b>My Team</b>, then press Solve again. If it persists, hard-refresh (Ctrl+Shift+R) to clear old cached files.</p></div>`;
+    $('#chipOpt').innerHTML = '';
+  }
 }
+
 
 function chipOptimizer(squad, H) {
   const chips = window.TEAMCTX ? window.TEAMCTX.chipsLeft : [];
@@ -1129,32 +1185,102 @@ function buildFH(i) {
   return pick;
 }
 
+const CMP_COLORS = ['#00ff85', '#4dc3ff', '#c792ea'];
+
+function cmpChartSVG(ps, H) {
+  const gw0 = DATA.fplmeta.current_gw + 1;
+  const series = ps.map(p => { const v = []; for (let i = 0; i < H; i++) v.push(projP(p, i)); return v; });
+  const rawMax = Math.max(...series.flat(), 1);
+  const p10 = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const nn = rawMax / p10;
+  const ymax = (nn <= 1 ? 1 : nn <= 2 ? 2 : nn <= 2.5 ? 2.5 : nn <= 5 ? 5 : 10) * p10;
+  const W = 760, Hpx = 300, PL = 46, PR = 14, PT = 16, PB = 66;
+  const X = i => PL + (W - PL - PR) * (H === 1 ? 0.5 : i / (H - 1));
+  const Y = v => PT + (Hpx - PT - PB) * (1 - v / ymax);
+  let g = '';
+  for (let t = 0; t <= 4; t++) {
+    const v = ymax * t / 4, y = Y(v);
+    g += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,${t === 0 ? 0.25 : 0.08})" stroke-width="1"/>`;
+    g += `<text x="${PL - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#8a93a6">${v.toFixed(1)}</text>`;
+  }
+  for (let i = 0; i < H; i++) {
+    const x = X(i);
+    g += `<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}" y2="${Hpx - PB}" stroke="rgba(255,255,255,0.05)"/>`;
+    g += `<text x="${x.toFixed(1)}" y="${Hpx - PB + 18}" text-anchor="middle" font-size="12" font-weight="700" fill="#e8ecf4">GW${gw0 + i}</text>`;
+    ps.forEach((p, k) => {
+      const f = (p.next3 || [])[i];
+      g += `<text x="${x.toFixed(1)}" y="${Hpx - PB + 32 + k * 12}" text-anchor="middle" font-size="10.5" fill="${CMP_COLORS[k]}">${f ? `${f.opp}(${f.ha}) ·${f.afdr ?? f.fdr}` : '—'}</text>`;
+    });
+  }
+  const win = [];
+  for (let i = 0; i < H; i++) { let bi = 0; series.forEach((s, k) => { if (s[i] > series[bi][i]) bi = k; }); win.push(bi); }
+  series.forEach((s, k) => {
+    const pts = s.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    const c = CMP_COLORS[k];
+    g += `<polygon points="${PL},${Y(0).toFixed(1)} ${pts} ${X(H - 1).toFixed(1)},${Y(0).toFixed(1)}" fill="${c}" opacity="0.10"/>`;
+    g += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.forEach((v, i) => {
+      const best = win[i] === k;
+      g += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${best ? 5 : 3.5}" fill="#0d1117" stroke="${best ? '#ffd166' : c}" stroke-width="${best ? 3 : 2.5}"><title>${esc(ps[k].name)} GW${gw0 + i}: ${v.toFixed(1)} pts${best ? ' ★ best' : ''}</title></circle>`;
+    });
+  });
+  return `<svg viewBox="0 0 ${W} ${Hpx}" style="width:100%;height:auto;display:block;background:rgba(255,255,255,.02);border-radius:10px" role="img"><title>Projected points per gameweek</title>${g}</svg>`;
+}
+
 function renderCompare() {
   const pick = id => findPlayer(($('#' + id).value || '').toLowerCase());
   const ps = [pick('cmpA'), pick('cmpB'), pick('cmpC')].filter(Boolean);
   const uniq = [...new Map(ps.map(p => [p.id, p])).values()];
   if (uniq.length < 2) { $('#cmpOut').innerHTML = '<p class="hint">Type two player names (autocomplete helps) and hit Compare.</p>'; return; }
-  const H = 5;
-  $('#cmpOut').innerHTML = uniq.map(p => {
-    const proj = []; for (let i = 0; i < H; i++) proj.push(projP(p, i));
-    const tot = proj.reduce((a, b) => a + b, 0);
-    const max = Math.max(...proj, 1);
-    const bars = proj.map((v, i) => `<div style="flex:1;text-align:center"><div style="height:${Math.round(34 * v / max)}px;background:linear-gradient(180deg,#00ff85,#0a8f52);border-radius:4px 4px 0 0" title="GW${DATA.fplmeta.current_gw + 1 + i}: ${v.toFixed(1)}"></div><div class="tk-opp">${(p.next3 || [])[i] ? (p.next3[i].opp + (p.next3[i].ha)) : 'GW' + (DATA.fplmeta.current_gw + 1 + i)}</div></div>`).join('');
-    const h = (DATA.history || {})[p.id] || [];
-    return `<div class="ml-rival" style="min-width:240px">
-      <h4>${esc(p.name)} ${posBadge(p.pos)} <span class="muted">${p.team} · £${p.cost}m</span></h4>
-      <div class="gapline">${p.pts} pts · form ${p.form} · ep ${p.ep_next} · xG ${p.xg} (${p.xg_diff >= 0 ? '+' : ''}${(p.xg_diff || 0).toFixed(1)}) · ${p.own}% own · team form #${formRank(p)}</div>
-      ${sparkSVG(p.id, 220, 40)}
-      <div style="display:flex;gap:3px;align-items:flex-end;height:52px;margin-top:8px">${bars}</div>
-      <div class="gapline" style="margin-top:6px">Next-5 projection: <b>${tot.toFixed(1)}</b> pts · adj FDR ${adjAvg3(p).toFixed(1)}</div>
-      ${h.length ? `<div class="tk-opp">last GWs: ${h.map(r => r[1] + 'pts').join(' · ')}</div>` : ''}
-    </div>`;
-  }).join('') + (() => {
-    const sorted = uniq.slice().sort((a, b) => { let sa = 0, sb = 0; for (let i = 0; i < H; i++) { sa += projP(a, i); sb += projP(b, i); } return sb - sa; });
-    let sa = 0, sb = 0; for (let i = 0; i < H; i++) { sa += projP(sorted[0], i); sb += projP(sorted[1], i); }
-    return `<div class="card" style="grid-column:1/-1"><p>🤖 Model edge over next 5: <b>${esc(sorted[0].name)}</b> by <b>+${(sa - sb).toFixed(1)}</b> projected pts${ML.ready ? ` — and ${ML.ownCount(sorted[0])}/${ML.n} of your rivals own him vs ${ML.ownCount(sorted[1])}/${ML.n} for ${esc(sorted[1].name)}` : ''}.</p></div>`;
-  })();
+  const H = 5, gw0 = DATA.fplmeta.current_gw + 1;
+  const totals = uniq.map(p => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; });
+  const order = uniq.map((p, k) => k).sort((a, b) => totals[b] - totals[a]);
+  const wins = uniq.map(() => 0);
+  for (let i = 0; i < H; i++) { let bi = 0; uniq.forEach((p, k) => { if (projP(p, i) > projP(uniq[bi], i)) bi = k; }); wins[bi]++; }
+  const fdrChip = f => f ? `<span class="fdr f${f.afdr ?? f.fdr}">${f.afdr ?? f.fdr}</span>` : '';
+  const heads = uniq.map((p, k) => `
+    <div class="ml-rival" style="border-top:3px solid ${CMP_COLORS[k]};min-width:220px">
+      <h4><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CMP_COLORS[k]};margin-right:6px"></span>${esc(p.name)} ${posBadge(p.pos)}</h4>
+      <div class="gapline">${p.team} · £${p.cost}m · ${p.own}% owned · team form #${formRank(p)}</div>
+      <div class="gapline">${p.pts} pts · ${p.g}G ${p.a}A · xG ${p.xg} xA ${p.xa} · ${p.mins}&prime;</div>
+      <div class="gapline">Reliability <b>${Math.round(reliab(p) * 100)}%</b> · next-5 <b style="color:${CMP_COLORS[k]}">${totals[k].toFixed(1)}</b> · GW wins <b>${wins[k]}/5</b></div>
+      <div style="margin-top:6px">${sparkSVG(p.id, 220, 36)}</div>
+    </div>`).join('');
+  const gwRows = Array.from({ length: H }, (_, i) => {
+    let bi = 0; uniq.forEach((p, k) => { if (projP(p, i) > projP(uniq[bi], i)) bi = k; });
+    return `<tr><td><b>GW${gw0 + i}</b></td>` + uniq.map((p, k) => {
+      const f = (p.next3 || [])[i];
+      return `<td class="num" style="${k === bi ? 'background:rgba(255,209,102,.12);font-weight:700' : ''}">${projP(p, i).toFixed(1)}${k === bi ? ' ★' : ''}<br><span class="tk-opp">${f ? `${f.opp}(${f.ha})` : '—'} ${fdrChip(f)}</span></td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  const METRICS = [
+    ['Form', p => p.form || 0, 1, ''], ['ep next', p => p.ep_next || 0, 1, ''],
+    ['Season pts', p => p.pts || 0, 0, ''], ['xG + xA', p => (p.xg || 0) + (p.xa || 0), 2, ''],
+    ['Minutes', p => p.mins || 0, 0, ''], ['Own %', p => p.own || 0, 1, '%'],
+    ['Price', p => p.cost || 0, 1, 'm'], ['Reliability', p => reliab(p) * 100, 0, '%'],
+  ];
+  const bars = METRICS.map(([label, fn, dec, unit]) => {
+    const vals = uniq.map(fn), mx = Math.max(...vals, 0.0001);
+    return `<div class="cmp-metric"><div class="cmp-mlabel">${label}</div>` + uniq.map((p, k) => `
+      <div class="cmp-mrow"><span class="cmp-mname" style="color:${CMP_COLORS[k]}">${esc(p.name)}</span>
+      <div class="cmp-mtrack"><div class="cmp-mfill" style="width:${(100 * vals[k] / mx).toFixed(1)}%;background:${CMP_COLORS[k]}"></div></div>
+      <span class="cmp-mval">${vals[k].toFixed(dec)}${unit}</span></div>`).join('') + '</div>';
+  }).join('');
+  const a = uniq[order[0]], b = uniq[order[1]], edge = totals[order[0]] - totals[order[1]];
+  $('#cmpOut').innerHTML = `<div class="ml-grid" style="grid-column:1/-1">${heads}</div>
+    <div class="card" style="grid-column:1/-1"><h2>📈 Projected points — next 5 gameweeks</h2>
+    <div class="cmp-legend">${uniq.map((p, k) => `<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${CMP_COLORS[k]};margin-right:5px"></span><b>${esc(p.name)}</b> <span class="muted">${totals[k].toFixed(1)} pts</span></span>`).join('')}</div>
+    ${cmpChartSVG(uniq, H)}
+    <p class="muted" style="margin:6px 0 0">Fixture under each GW (number = difficulty) · gold ring = model's best that week · hover dots for values.</p></div>
+    <div class="card" style="grid-column:1/-1"><h2>📆 Gameweek breakdown <span class="muted">— ★ = model's pick each week</span></h2>
+    <div style="overflow-x:auto"><table class="data"><tr><th></th>${uniq.map((p, k) => `<th class="num"><span style="color:${CMP_COLORS[k]}">●</span> ${esc(p.name)}</th>`).join('')}</tr>
+    ${gwRows}<tr><td><b>Total</b></td>${uniq.map((p, k) => `<td class="num"><b style="color:${CMP_COLORS[k]}">${totals[k].toFixed(1)}</b></td>`).join('')}</tr></table></div></div>
+    <div class="card" style="grid-column:1/-1"><h2>📊 Head-to-head numbers</h2><div class="cmp-metrics">${bars}</div></div>
+    <div class="card" style="grid-column:1/-1"><h2>🤖 Verdict</h2>
+    <p><b style="color:${CMP_COLORS[order[0]]}">${esc(a.name)}</b> by <b>+${edge.toFixed(1)}</b> projected pts over the next 5 (${totals[order[0]].toFixed(1)} vs ${totals[order[1]].toFixed(1)}), winning <b>${wins[order[0]]}/5</b> gameweeks on fixtures × form × reliability.</p>
+    <p class="muted">${reliab(a) >= reliab(b) ? `${esc(a.name)}'s returns are also more reliable (${Math.round(reliab(a) * 100)}% vs ${Math.round(reliab(b) * 100)}%) — underlying xGI backs the output.` : `Note: ${esc(b.name)} is the more reliable pick (${Math.round(reliab(b) * 100)}% vs ${Math.round(reliab(a) * 100)}%) — ${esc(a.name)}'s edge leans on fixtures; weigh floor vs ceiling.`}${ML.ready ? ` Mini-league: ${ML.ownCount(a)}/${ML.n} rivals own ${esc(a.name)} vs ${ML.ownCount(b)}/${ML.n} for ${esc(b.name)}.` : ''}</p></div>`;
 }
+
 
 // tabs
 $$('.tab').forEach(t => t.onclick = () => {
