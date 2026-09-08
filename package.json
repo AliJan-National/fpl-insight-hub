@@ -1,0 +1,10 @@
+{
+  "name": "fpl-insight-hub",
+  "version": "31.0.0",
+  "private": true,
+  "description": "FPL Insight Hub — deterministic, honest FPL decision engine (static, zero-dependency).",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "engines": { "node": ">=18" }
+}

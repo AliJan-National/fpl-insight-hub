@@ -7,10 +7,11 @@ async function load() {
   const res = await Promise.all(names.map(n => fetch(`api/${n}.json`).then(r => r.json())));
   names.forEach((n, i) => DATA[n] = res[i]);
   renderAll();
+  try { if (typeof fxLedgerRecord === 'function') fxLedgerRecord(); } catch (e) { console.error('[fxLedger]', e); }
   try { ET.init(DATA); } catch (e) { console.error('[ELITE init]', e); }
 }
 
-function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtK(n) { return n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : n; }
 function posBadge(p) { return `<span class="pos ${p}">${p}</span>`; }
 
@@ -987,10 +988,34 @@ function osmAsk(q) {
 function askAI(q) {
   const Q = q.toLowerCase();
   const ctx = window.TEAMCTX;
-  try { if (typeof eliteAsk === 'function' && DATA.elite && (DATA.elite.elites || []).length) { const er = eliteAsk(q); if (er) return er; } } catch (e) { console.error('[ELITE ask]', e); }
+  // v31 routing fix (B1): named-pair H2H decisions outrank elite & captain interception
   const _pair = resolvePair(q);
   if (_pair && !/^\s*(compare|open in compare)/i.test(Q)) return pairDecision(_pair[0], _pair[1], q);
   const pl = findPlayer(q);
+  // B9: single named player + fixture words -> their own scout report / schedule strip
+  if (pl && /(fixture|schedule|run|next gw|upcoming)/.test(Q) && !/(sell|drop|bench|captain|armband|buy|bring|compare|versus|mini|league|rival|wildcard|chip)/.test(Q)) return scout(pl);
+  // B9: position + price intent ("best DEF under 6m") answers with players, not team defences
+  const ppPos = (/(?:^|[^a-z])(gk|goalkeeper|def|defender|mid|midfielder|fwd|forward|striker)s?(?:[^a-z]|$)/.exec(Q) || [])[1];
+  const ppPrice = /under\s*£?(\d+(?:\.\d+)?)m?\b/.exec(Q);
+  const POSPP = { gk:'GK', goalkeeper:'GK', def:'DEF', defender:'DEF', mid:'MID', midfielder:'MID', fwd:'FWD', forward:'FWD', striker:'FWD' };
+  if (ppPos && ppPrice && !/(defence|defense|attack|strength|conced|leak|porous)/.test(Q)) {
+    const code = POSPP[ppPos.toLowerCase()], budget = parseFloat(ppPrice[1]);
+    const top = DATA.players
+      .filter(p => p.status === 'a' && p.mins >= 60 && p.cost <= budget && p.pos === code && (p.ep_next || 0) >= 1 && !(ctx && ctx.squad && ctx.squad.some(s => s.e && s.e.n === p.name)))
+      .map(p => ({ p, f: (typeof forecastOf === 'function') ? forecastOf(p) : null }))
+      .sort((a, b) => ((b.f && b.f.xp) || (b.p.ep_next || 0)) - ((a.f && a.f.xp) || (a.p.ep_next || 0))).slice(0, 4);
+    if (top.length) {
+      return `Best ${code} under £${budget.toFixed(1)}m (ranked by model xP):<br>` + top.map(t => {
+        const f = t.f || {};
+        const xTxt = f && f.xp != null ? 'xP ' + f.xp.toFixed(1) : 'ep ' + (t.p.ep_next || 0).toFixed(1);
+        return `<span class="mrow">• <b>${esc(t.p.name)}</b> (${t.p.team}, £${t.p.cost}m, ${t.p.own}% owned) — ${xTxt}${f && f.p6 ? ' · P(≥6) ' + f.p6 + '%' : ''}${f && f.minutes ? ' · starts ~' + Math.round(f.minutes.pStart * 100) + '%' : ''}</span>`;
+      }).join('') + '<br><span class="muted">Model estimates from real GW1-3 data — check the fixture before you buy.</span>';
+    }
+  }
+  // Elite intel answers only genuinely elite-flavoured questions (B1/B9: captain/H2H/rate-my-team no longer shadowed)
+  if (DATA.elite && (DATA.elite.elites || []).length && /elite|weighted|skill.?weight|proven|template|captained|captaincy|armband|differential|deadline|top signals|movers|cohort|bought|sold|top-?10k|top-?1k/.test(Q)) {
+    try { const er = (typeof eliteAsk === 'function') ? eliteAsk(q) : null; if (er) return er; } catch (e) { console.error('[ELITE ask]', e); }
+  }
   if (!pl && /(defence|defense|def|attack|strength|conced)/.test(Q) && /(best|strong|weak|worst|easiest|hardest|elite|leak|top|solid|porous)/.test(Q)) {
     try { const oa = typeof osmAsk === 'function' ? osmAsk(Q) : ''; if (oa) return oa; } catch (e) { console.error('[osmAsk]', e); }
   }
@@ -1128,7 +1153,7 @@ function chat(q) {
 $('#chatSend').onclick = () => { const v = $('#chatInput').value.trim(); if (v) { chat(v); $('#chatInput').value = ''; } };
 $('#chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#chatSend').click(); });
 $$('#quickQs .chip').forEach(c => c.onclick = () => chat(c.textContent));
-$('#chatLog').innerHTML = `<div class="msg bot">👋 I'm your <b>FPL Copilot</b>. I know the full 2026/27 dataset (653 players, fixtures, xG, prices) — and once you load your team in <b>My Team</b>, every answer becomes personal. Try the quick questions!</div>`;
+$('#chatLog').innerHTML = `<div class="msg bot">👋 I'm your <b>FPL Copilot</b>. I know the full 2026/27 dataset (' + DATA.players.length + ' players, fixtures, xG, prices) — and once you load your team in <b>My Team</b>, every answer becomes personal. Try the quick questions!</div>`;
 
 // ============ 🏆 MINI LEAGUE WINNING ENGINE (relative optimization) ============
 // Objective (per spec): maximise P(finish 1st in YOUR league), not raw points.
@@ -1558,6 +1583,101 @@ function selLine(p) {
   return '<div style="display:flex;justify-content:space-between"><span class="muted" title="model: his real GW1-' + ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + ' starts + official status">starts (selection model)</span><b style="color:' + l.c + '">~' + Math.round(ps * 100) + '% · ' + l.txt + '</b></div>';
 }
 
+// ============ 🎯 FIXTURE-RESPONSE MODEL (audit B2/M2 · v31) ============
+// The one-spine fix: previously the xP moved with the fixture but P(>=6)/P(>=10)
+// did not (they never saw the opponent). Now BOTH respond to the same fitted,
+// REAL-data opponent strength. Defenders/GK respond to the opponent's ATTACK
+// (xG per match — CS odds), attackers/MID to the opponent's DEFENCE (xGA per
+// match). Ratios of observed GW1-3 points & return-rates vs the league mean are
+// shrunk hard (small sample) — labelled model estimates, never a promise.
+const FIX_MEMO = {};
+function fixCalib() {
+  if (FIX_MEMO.ready) return FIX_MEMO;
+  const res = { att: null, def: null, mean: null, n: 0, note: '' };
+  try {
+    if (!DATA.results || !DATA.results.length || !DATA.history || !DATA.players) return res;
+    const byTeam = {};
+    (DATA.results || []).forEach(m => {
+      [['home', m.hxg, m.axg], ['away', m.axg, m.hxg]].forEach(([side, xgf, xga]) => {
+        const o = byTeam[m[side]] = byTeam[m[side]] || { n: 0, xgf: 0, xga: 0 };
+        o.n++; o.xgf += xgf || 0; o.xga += xga || 0;
+      });
+    });
+    const teams = Object.keys(byTeam);
+    if (!teams.length) return res;
+    const meanOf = k => teams.reduce((a, t) => a + byTeam[t][k] / byTeam[t].n, 0) / teams.length;
+    const meanXgf = meanOf('xgf'), meanXga = meanOf('xga');
+    const gwOpp = {};
+    (DATA.results || []).forEach(m => {
+      (gwOpp[m.gw] = gwOpp[m.gw] || {})[m.home] = m.away;
+      (gwOpp[m.gw] = gwOpp[m.gw] || {})[m.away] = m.home;
+    });
+    const byId = {}; (DATA.players || []).forEach(p => { byId[p.id] = p; });
+    // pools measure RELATIVE response: ratio of band stats to the pool's own mean
+    const mk = () => ({ band: [{ n: 0, sum: 0, r6: 0 }, { n: 0, sum: 0, r6: 0 }, { n: 0, sum: 0, r6: 0 }], n: 0, sum: 0, r6: 0 });
+    const att = mk(), def = mk();
+    const bandOf = rel => rel <= 0.86 ? 0 : rel <= 1.16 ? 1 : 2;
+    const push = (pool, b, pts) => { pool.n++; pool.sum += pts; if (pts >= 6) pool.r6++; pool.band[b].n++; pool.band[b].sum += pts; if (pts >= 6) pool.band[b].r6++; };
+    for (const idStr of Object.keys(DATA.history)) {
+      const pl = byId[+idStr]; if (!pl || !pl.team) continue;
+      const pool = (pl.pos === 'GK' || pl.pos === 'DEF') ? def : att;
+      const teamRow = byTeam[pl.team]; if (!teamRow) continue;
+      for (const r of DATA.history[idStr] || []) {
+        if ((r[4] || 0) < 60) continue;                     // starters only (best "actually plays" proxy)
+        const g = r[0], opp = (gwOpp[g] || {})[pl.team];
+        const op = opp && byTeam[opp]; if (!op) continue;
+        // lens: attacker faces opp defence (xga); defender faces opp attack (xgf)
+        const rel = (pl.pos === 'GK' || pl.pos === 'DEF')
+          ? meanXgf / Math.max(0.05, op.xgf / op.n)          // >1 => opp attack weak => easier
+          : (op.xga / op.n) / meanXga;                       // >1 => opp defence leaky => easier
+        push(pool, bandOf(rel), r[1] || 0);
+      }
+    }
+    const fit = (pool, K) => {
+      const totPts = pool.n ? pool.sum / pool.n : 0;
+      const tot6 = pool.n ? pool.r6 / pool.n : 0;
+      const bands = pool.band.map(b => {
+        const n = b.n;
+        let xf = 1, pf = 1;
+        if (n && totPts > 0) {
+          const w = n / (n + K);
+          xf = Math.max(0.6, Math.min(1.55, 1 + w * ((b.sum / n) / totPts - 1)));
+        }
+        if (n && tot6 > 0) {
+          const w = n / (n + K);
+          pf = Math.max(0.55, Math.min(1.8, 1 + w * ((b.r6 / n) / tot6 - 1)));
+        }
+        return { n, xf: Math.round(xf * 1000) / 1000, pf: Math.round(pf * 1000) / 1000 };
+      });
+      return { bands, n: pool.n };
+    };
+    res.att = fit(att, 12); res.def = fit(def, 12);
+    res.mean = { meanXgf: Math.round(meanXgf * 1000) / 1000, meanXga: Math.round(meanXga * 1000) / 1000 };
+    res.n = att.n + def.n;
+  } catch (e) { console.error('[fixCalib]', e); }
+  FIX_MEMO.ready = true; FIX_MEMO.att = res.att; FIX_MEMO.def = res.def; FIX_MEMO.mean = res.mean; FIX_MEMO.n = res.n; FIX_MEMO.note = res.note;
+  return FIX_MEMO;
+}
+// per-player fixture response for GW index i (default 0 = next GW). Returns
+// {xf,pf,band,opp} or null when the opponent isn't known / no data yet.
+function oppFixOf(p, i) {
+  if (!p) return null;
+  const ix = i == null ? 0 : i;
+  const f = (p.next3 || [])[ix] || null;
+  const opp = f ? f.opp : null;
+  if (!opp) return null;
+  const cal = fixCalib();
+  if (!cal.att) return null;
+  const isDef = p.pos === 'GK' || p.pos === 'DEF';
+  const team = (typeof osmByShort === 'function') ? osmByShort()[opp] : null;
+  if (!team || !cal.mean) return null;
+  const rel = isDef ? cal.mean.meanXgf / Math.max(0.05, team.att) : team.xga / cal.mean.meanXga;
+  const b = rel <= 0.86 ? 0 : rel <= 1.16 ? 1 : 2;
+  const tab = isDef ? cal.def : cal.att;
+  const blk = tab.bands[b];
+  return { xf: blk.xf, pf: blk.pf, band: ['tough', 'neutral', 'easy'][b], opp, n: blk.n };
+}
+
 // per-GW model projection: blend(official ep, form) × form-adjusted FDR × H/A × minutes × reliability
 const projP = (p, i) => {
   const t = window.TF[p.team] || {};
@@ -1566,7 +1686,9 @@ const projP = (p, i) => {
   const ha = f ? f.ha : null;
   const minProb = startProb(p);
   const base = 0.55 * (p.ep_next || 0) + 0.45 * (p.form || 0);
-  return base * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
+  const fx = oppFixOf(p, i);
+  const mult = fx ? fx.xf : (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1);
+  return base * mult * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
 
@@ -1672,7 +1794,10 @@ function ppBaseRates() {
 function playerProb(p, over) {
   const mins = over && over.mins != null ? over.mins : (p.mins || 0);
   const status = over && over.status != null ? over.status : (p.status || 'a');
-  const key = p.id + '|' + mins + '|' + status;
+  // v31 fixture-aware probabilities (B2): return chances respond to the opponent,
+  // exactly like the xP already does — restores consistency inside forecastOf.
+  const oppFx = (typeof oppFixOf === 'function') ? oppFixOf(p, over && over.i != null ? over.i : 0) : null;
+  const key = p.id + '|' + mins + '|' + status + (oppFx ? '|' + oppFx.band + ':' + oppFx.opp : '');
   if (PP_MEMO[key]) return PP_MEMO[key];
   const scores = ppScores(p);
   const n = scores.length;
@@ -1688,12 +1813,17 @@ function playerProb(p, over) {
   const gate = 0.25 + 0.75 * minProb;
   p6 = Math.max(1, Math.min(85, Math.round(p6 * gate)));
   p10 = Math.max(1, Math.min(60, Math.round(p10 * gate)));
+  if (oppFx && oppFx.pf !== 1) {
+    p6 = Math.max(1, Math.min(85, Math.round(p6 * oppFx.pf)));
+    p10 = Math.max(1, Math.min(60, Math.round(p10 * oppFx.pf)));
+    if (p10 > p6) p10 = p6;
+  }
   const avg = n ? scores.reduce((a, x) => a + x, 0) / n : 0;
   let sd = n > 1 ? Math.sqrt(scores.reduce((s, x) => s + (x - avg) * (x - avg), 0) / (n - 1)) : 0;
   if (n < 2) sd = b.n ? Math.sqrt(Math.max(0, b.sq / b.n - (b.sum / b.n) * (b.sum / b.n))) : 3;
   sd = Math.max(1.5, Math.min(8, Math.round(sd * 10) / 10)); // typical per-GW swing
   const best = n ? Math.max.apply(null, scores) : 0;
-  PP_MEMO[key] = { n, p6, p10, sd, best, obs6, obs10, prior6: Math.round(prior6), prior10: Math.round(prior10) };
+  PP_MEMO[key] = { n, p6, p10, sd, best, obs6, obs10, prior6: Math.round(prior6), prior10: Math.round(prior10), fx: oppFx ? oppFx.band : null };
   return PP_MEMO[key];
 }
 // two labelled chance rows used inside H2H / Compare cards
@@ -2252,6 +2382,78 @@ function renderLabDigest() {
   try { el.innerHTML = labDigestHtml(); } catch (e) { console.error('[labDigest]', e); el.innerHTML = ''; }
 }
 
+// ============ 📏 xP MEASUREMENT (audit M3 · v31) ============
+// projP was never backtested against official FPL ep_next, because a retro test
+// leaks (no historical ep snapshots). Fix: a FORECAST LEDGER records, once per
+// gameweek, the model xP AND the official ep for every player for the open GW.
+// When that GW's real results land, fxBench() scores both against actual points
+// (MAE + correlation) with no leakage. Deterministic + local.
+const FL_KEY = 'fxledger_v1';
+function flGet() { try { return JSON.parse(localStorage.getItem(FL_KEY)) || {}; } catch (e) { return {}; } }
+function flSet(o) { try { localStorage.setItem(FL_KEY, JSON.stringify(o)); } catch (e) { } }
+function flOpenGw() { return ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + 1; }
+function fxLedgerRecord() {
+  try {
+    if (!DATA.players || !DATA.players.length) return;
+    const g = flOpenGw();
+    const led = flGet();
+    if (led[g]) return;
+    const snap = {};
+    for (const p of DATA.players) {
+      const f = (typeof forecastOf === 'function') ? forecastOf(p) : null;
+      if (!f) continue;
+      snap[p.id] = { xp: f.xp, ep: Math.round((p.ep_next || 0) * 10) / 10, p6: f.p6 };
+    }
+    led[g] = { n: Object.keys(snap).length, snap };
+    Object.keys(led).forEach(k => { if (Number(k) < g - 5) delete led[k]; });
+    flSet(led);
+  } catch (e) { console.error('[fxLedger]', e); }
+}
+function fxBench() {
+  const led = flGet();
+  const cur = (DATA.fplmeta && DATA.fplmeta.current_gw) || 3;
+  const hist = DATA.history || {};
+  const act = {};
+  for (const idStr of Object.keys(hist)) for (const r of hist[idStr] || []) {
+    if (r[0] === cur) act[idStr] = (act[idStr] || 0) + (r[1] || 0);
+  }
+  if (!led[cur] || !Object.keys(act).length) return { g: cur, n: 0 };
+  const M = [], O = [];
+  const snap = led[cur].snap || {};
+  for (const idStr of Object.keys(act)) {
+    const f = snap[idStr]; if (!f) continue;
+    const y = act[idStr];
+    M.push([f.xp, y]); O.push([f.ep, y]);
+  }
+  const n = M.length;
+  const stat = arr => {
+    if (n < 2) return { n, mae: null, r: null, mP: null, mA: null };
+    const mP = arr.reduce((a, x) => a + x[0], 0) / n, mA = arr.reduce((a, x) => a + x[1], 0) / n;
+    let cov = 0, vP = 0, vA = 0, mae = 0;
+    arr.forEach(x => { cov += (x[0] - mP) * (x[1] - mA); vP += (x[0] - mP) ** 2; vA += (x[1] - mA) ** 2; mae += Math.abs(x[0] - x[1]); });
+    return { n, mae: Math.round(mae / n * 100) / 100, r: vP > 0 && vA > 0 ? Math.round(cov / Math.sqrt(vP * vA) * 1000) / 1000 : null, mP: Math.round(mP * 100) / 100, mA: Math.round(mA * 100) / 100 };
+  };
+  return { g: cur, n, model: stat(M), ep: stat(O), ledN: (led[cur] && led[cur].n) || 0 };
+}
+function btXpCard() {
+  const g = flOpenGw();
+  const b = fxBench();
+  if (!b.n) {
+    const prev = flGet()[flOpenGw() - 1];
+    const rec = prev && prev.n;
+    return `<div class="card" style="grid-column:1/-1"><h2>📏 xP vs official — forecast ledger</h2>
+      <p class="hint">The core xP model is never backtested retroactively (that would leak — no historical ep snapshots exist). So since v31 every open GW's <b>model xP and official FPL ep</b> are recorded for every player, once. The first measurement publishes itself here as soon as GW${g} has real results.</p>
+      <p class="muted">Ledger armed${rec ? ' — GW' + (g - 1) + ': ' + rec + ' players recorded, awaiting GW' + g + ' results' : ' (first snapshot happens now)'}. Same honesty loop as the decision ledger: record, then measure, then publish.</p></div>`;
+  }
+  const model = b.model, ep = b.ep;
+  const better = (model.mae != null && ep.mae != null) ? (model.mae < ep.mae ? 'model <b>leads</b>' : ep.mae < model.mae ? 'official ep <b>leads</b>' : 'level') : 'n/a';
+  return `<div class="card" style="grid-column:1/-1"><h2>📏 xP vs official — GW${b.g} measured</h2>
+    <table style="width:100%;border-collapse:collapse"><tr><th>predictor</th><th class="num">MAE</th><th class="num">corr r</th></tr>
+    <tr><td><b>our model xP</b></td><td class="num">${model.mae == null ? 'n/a' : model.mae}</td><td class="num">${model.r == null ? 'n/a' : model.r}</td></tr>
+    <tr><td>official FPL ep</td><td class="num">${ep.mae == null ? 'n/a' : ep.mae}</td><td class="num">${ep.r == null ? 'n/a' : ep.r}</td></tr></table>
+    <p class="muted">n=${model.n} starters · mean predicted ${model.mP} vs actual ${model.mA} · ${better}${model.n < 120 ? ' <span class="xb" style="--c:var(--amber)">pilot — not yet significant</span>' : ''}. Honest rule: if the model can't beat official ep, we simplify it.</p></div>`;
+}
+
 function renderBacktest() {
   const el = $('#btOut'); if (!el) return;
   try {
@@ -2272,6 +2474,7 @@ function renderBacktest() {
       <div class="card" style="grid-column:1/-1"><h2>⏱️ (B) Rolling GW test <span class="muted">— predict GW g from GWs &lt; g only</span></h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">${rollCards || '<p class="muted">—</p>'}</div>
       ${multi}
+            ${btXpCard()}
       <p class="muted" style="margin-top:4px">Caveat: a single GW of "form" is a weak predictor of the next GW (soccer is noisy). A correlation near 0 at this stage is the <b>expected honest result</b>, not a bug — the lab exists to measure it, and each week adds power.</p></div>`;
   } catch (e) { console.error('[backtest]', e); el.innerHTML = ''; }
 }
@@ -2609,7 +2812,7 @@ const ET = (() => {
 // ============================================================================
 // 🧠 ELITE MANAGER TRENDS — renderer & NL (real evidence only)
 // ============================================================================
-const eh = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const eh = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 function eBar(pct, color) {
   const p = Math.max(2, Math.min(100, pct || 0));
   return `<div class="x-bar"><div class="x-fill" style="width:${p}%;background:${color || 'var(--green)'}"></div></div>`;
@@ -2977,44 +3180,6 @@ $$('#posChips .chip').forEach(c => c.onclick = () => {
 });
 
 load();
-
-
-// Elite desk (natural language)
-function eliteAnswer(q) {
-  const out = $('#xintOut');
-  try {
-    const ans = (typeof eliteAsk === 'function' && DATA.elite && (DATA.elite.elites || []).length) ? eliteAsk(q) : null;
-    if (ans) { out.innerHTML = ans; out.classList.add('show'); }
-    else { out.innerHTML = 'That needs the ⚖️ Compare / My Team tools or a player name. I answer from real elite data: buying/selling, captaincy, differentials, the template, my team vs elites, risks and top signals.'; out.classList.add('show'); }
-  } catch (e) { out.innerHTML = '⚠️ ' + esc(e.message || e); out.classList.add('show'); }
-}
-(function wireElite() {
-  const q = $('#xintQ'), btn = $('#xintAsk');
-  if (!q || !btn) return;
-  const ask = () => { const v = q.value.trim(); if (v) { eliteAnswer(v); q.value = ''; } };
-  btn.onclick = ask;
-  q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
-  document.querySelectorAll('#xintQs .chip').forEach(c => { c.onclick = () => eliteAnswer(c.textContent); });
-})();
-
-
-// Elite desk (natural language)
-function eliteAnswer(q) {
-  const out = $('#xintOut');
-  try {
-    const ans = (typeof eliteAsk === 'function' && DATA.elite && (DATA.elite.elites || []).length) ? eliteAsk(q) : null;
-    if (ans) { out.innerHTML = ans; out.classList.add('show'); }
-    else { out.innerHTML = 'That needs the ⚖️ Compare / My Team tools or a player name. I answer from real elite data: buying/selling, captaincy, differentials, the template, my team vs elites, risks and top signals.'; out.classList.add('show'); }
-  } catch (e) { out.innerHTML = '⚠️ ' + esc(e.message || e); out.classList.add('show'); }
-}
-(function wireElite() {
-  const q = $('#xintQ'), btn = $('#xintAsk');
-  if (!q || !btn) return;
-  const ask = () => { const v = q.value.trim(); if (v) { eliteAnswer(v); q.value = ''; } };
-  btn.onclick = ask;
-  q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
-  document.querySelectorAll('#xintQs .chip').forEach(c => { c.onclick = () => eliteAnswer(c.textContent); });
-})();
 
 
 // Elite desk (natural language)
