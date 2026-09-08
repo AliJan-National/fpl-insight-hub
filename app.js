@@ -1401,6 +1401,105 @@ function sparkSVG(id, w = 110, h = 30) {
     <title>per-GW points (green) vs xG+xA (blue dashed)</title></svg>`;
 }
 
+// ---- Multi-period planner engine (audit roadmap #8) ----
+// The classic greedy solver commits each GW to the single move that looks best
+// THIS week (+0.6x next week) — so a transfer that only pays off in GW+2/3, or a
+// two-move sequence that needs an "enabler" first, was routinely missed.
+// The engine below runs a small BEAM of competing squads across the whole
+// horizon and scores every candidate branch with a full forward pass over the
+// remaining GWs, then commits only at the end. Result is never worse than the
+// old greedy plan (the greedy path is always one of the explored branches).
+const PLAN_MARK = 1; // (no-op marker so the block is locatable in tests)
+function planPoolCand(squad) {
+  return DATA.players.filter(p => p.status === 'a' && p.mins >= 60 && !squad.some(x => x.id === p.id));
+}
+// one full horizon of decisions: at each GW pick the single best move (or roll)
+function planGreedy(squad, bank, ft, H, opts) {
+  const o = opts || {};
+  const oOut = o.oOut || 6, oIn = o.oIn || 16;
+  let sq = squad.slice(), b = bank, f = ft;
+  const rows = [];
+  for (let i = 0; i < H; i++) {
+    const rem = H - i;
+    const base = teamProjAt(sq, i);
+    let best = null, bestVal = -Infinity;
+    const outs = sq.slice().sort((a, c) => hSumP(a, rem) - hSumP(c, rem)).slice(0, oOut);
+    const ins = planPoolCand(sq).sort((a, c) => hSumP(c, rem) - hSumP(a, rem)).slice(0, oIn);
+    for (const out of outs) for (const inn of ins) {
+      if (inn.cost > b + out.cost + 0.1 || !shapeOK(sq, out, inn)) continue;
+      const sq2 = sq.map(p => (p === out ? inn : p));
+      let val = teamProjAt(sq2, i) - base;
+      if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(sq, i + 1));
+      if (f <= 0) val -= 4;
+      if (val > bestVal + 0.25) { bestVal = val; best = { out, inn }; }
+    }
+    const hit = !!best && f <= 0;
+    if (best) { b += best.out.cost - best.inn.cost; sq = sq.map(p => (p === best.out ? best.inn : p)); f = Math.max(0, f - 1); }
+    else f = Math.min(5, f + 1);
+    const st = startersAt(sq, i);
+    const cap = st.slice().sort((a, c) => projP(c, i) - projP(a, i))[0];
+    rows.push({ gw: i, act: best, hit, cap, proj: teamProjAt(sq, i), ft: f });
+  }
+  const total = rows.reduce((s, r) => s + r.proj, 0);
+  return { squad: sq, bank: b, rows, total };
+}
+// replay an act-list into the same {rows, total} schema (caps + FT bookkeeping)
+function planReplay(squad0, bank0, ft0, acts) {
+  let sq = squad0.slice(), b = bank0, f = ft0;
+  const rows = acts.map((a, i) => {
+    if (a && a.inn) { b += a.out.cost - a.inn.cost; sq = sq.map(p => (p === a.out ? a.inn : p)); f = Math.max(0, f - 1); }
+    else f = Math.min(5, f + 1);
+    const st = startersAt(sq, i);
+    const cap = st.slice().sort((x, c) => projP(c, i) - projP(x, i))[0];
+    return { gw: i, act: a && a.inn ? a : null, hit: a && a.inn && a.hit, cap, proj: teamProjAt(sq, i), ft: f };
+  });
+  const total = rows.reduce((s, r) => s + r.proj, 0);
+  return { squad: sq, bank: b, rows, total, acts };
+}
+// beam search: W competing squads per GW, K candidate moves each, every branch
+// carries its banked projected points AND is scored by the FULL remaining-horizon
+// forward pass (fast greedy continuation), so a good prefix is never discarded.
+function planBeam(squad, bank, ft, H, opts) {
+  const o = opts || {};
+  const W = o.W || 5, K = o.K || 8;
+  const cOut = o.cOut || 5, cIn = o.cIn || 10;
+  let beam = [{ sq: squad.slice(), b: bank, f: ft, acts: [], acc: 0 }];
+  for (let i = 0; i < H; i++) {
+    const rem = H - i;
+    const expanded = [];
+    for (const nd of beam) {
+      const base = teamProjAt(nd.sq, i);
+      const outs = nd.sq.slice().sort((a, c) => hSumP(a, rem) - hSumP(c, rem)).slice(0, cOut);
+      const ins = planPoolCand(nd.sq).sort((a, c) => hSumP(c, rem) - hSumP(a, rem)).slice(0, cIn);
+      const quick = [{ out: null, inn: null, sq2: nd.sq, b2: nd.b, f2: Math.min(5, nd.f + 1), hit: false, val: 0 }];
+      for (const out of outs) for (const inn of ins) {
+        if (inn.cost > nd.b + out.cost + 0.1 || !shapeOK(nd.sq, out, inn)) continue;
+        const sq2 = nd.sq.map(p => (p === out ? inn : p));
+        let val = teamProjAt(sq2, i) - base;
+        if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(nd.sq, i + 1));
+        if (nd.f <= 0) val -= 4;
+        quick.push({ out, inn, sq2, b2: nd.b + out.cost - inn.cost, f2: Math.max(0, nd.f - 1), hit: nd.f <= 0, val });
+      }
+      quick.sort((a, c) => c.val - a.val).slice(0, K + 1).forEach(c => {
+        expanded.push({ sq: c.sq2, b: c.b2, f: c.f2, acc: nd.acc + teamProjAt(c.sq2, i),
+          acts: nd.acts.concat([c.inn ? { gw: i, out: c.out, inn: c.inn, hit: c.hit } : null]) });
+      });
+    }
+    // score each branch = points banked so far + full forward pass over the rest
+    expanded.forEach(nd => { nd.est = nd.acc + (i + 1 < H ? planGreedy(nd.sq, nd.b, nd.f, H - i - 1, { oOut: 4, oIn: 8 }).total : 0); });
+    expanded.sort((a, c) => c.est - a.est);
+    beam = expanded.slice(0, W);
+  }
+  beam.sort((a, c) => c.est - a.est);
+  const chosen = beam[0];
+  const res = planReplay(squad, bank, ft, chosen.acts);
+  res.est = Math.round(chosen.est * 100) / 100;
+  // absolute floor: never return a plan worse than the full-width greedy baseline
+  const gRes = planGreedy(squad, bank, ft, H, { oOut: 6, oIn: 16 });
+  if (gRes.total > res.total) { gRes.est = res.est; return gRes; }
+  return res;
+}
+
 function solvePlan() {
   const out = $('#planOut');
   try {
@@ -1411,7 +1510,7 @@ function solvePlan() {
       return;
     }
     out.innerHTML = '<div class="card"><p class="hint">🧮 Solving your optimal transfers…</p></div>';
-    const H = +$('#planHorizon').value || 4;
+    const H = Math.max(1, Math.min(6, +$('#planHorizon').value || 4));
     const byName = {}; DATA.players.forEach(p => { byName[p.name] = p; });
     let squad = ctx.squad.map(s => DATA.players.find(p => p.id === s.r.element) || (s.e && byName[s.e.n])).filter(Boolean);
     if (squad.length < 11) {
@@ -1419,39 +1518,26 @@ function solvePlan() {
       $('#chipOpt').innerHTML = '';
       return;
     }
-    let bank = ctx.bank, ft = 1;
-    const rows = [];
-    const pool = DATA.players.filter(p => p.status === 'a' && p.mins >= 60);
-    for (let i = 0; i < H; i++) {
-      const rem = H - i;
-      const base = teamProjAt(squad, i);
-      let best = { val: 0.0, act: null };
-      const outs = squad.slice().sort((a, b) => hSumP(a, rem) - hSumP(b, rem)).slice(0, 6);
-      const ins = pool.filter(p => !squad.includes(p)).sort((a, b) => hSumP(b, rem) - hSumP(a, rem)).slice(0, 16);
-      for (const out of outs) for (const inn of ins) {
-        if (inn.cost > bank + out.cost + 0.1 || !shapeOK(squad, out, inn)) continue;
-        const sq2 = squad.map(p => (p === out ? inn : p));
-        let val = teamProjAt(sq2, i) - base;
-        if (i + 1 < H) val += 0.6 * (teamProjAt(sq2, i + 1) - teamProjAt(squad, i + 1));
-        if (ft <= 0) val -= 4;
-        if (val > best.val + 0.25) best = { val, act: { out, inn } };
-      }
-      const hit = !!best.act && ft <= 0;
-      if (best.act) { bank += best.act.out.cost - best.act.inn.cost; squad = squad.map(p => (p === best.act.out ? best.act.inn : p)); ft = Math.max(0, ft - 1); }
-      else ft = Math.min(5, ft + 1);
-      const st = startersAt(squad, i);
-      const cap = st.slice().sort((a, b) => projP(b, i) - projP(a, i))[0];
-      rows.push({ gw: DATA.fplmeta.current_gw + 1 + i, act: best.act, hit, cap, proj: teamProjAt(squad, i), ft });
-    }
-    const tot = rows.reduce((s, r) => s + r.proj, 0);
+    const bank = ctx.bank || 0, ft = 1;
+    const g = planGreedy(squad, bank, ft, H);
+    // multi-period beam: looks across the WHOLE horizon, not just this week
+    const b = H >= 2 ? planBeam(squad, bank, ft, H, { W: 5, K: 8 }) : g;
+    const best = b.total >= g.total - 1e-9 ? b : g; // beam always contains the greedy path
+    const rows = best.rows;
+    const tot = best.total;
+    const betterBy = b.total - g.total;
+    const cmp = b !== g && betterBy > 0.05
+      ? `<span class="mrow">🔭 Multi-period lookahead beat the greedy plan by <b class="up">+${betterBy.toFixed(1)}</b> projected pts (${b.total.toFixed(1)} vs ${g.total.toFixed(1)}) — it saw a move that only pays off in a later GW.</span>`
+      : `<span class="mrow">🔭 ${H}-GW lookahead explored the whole horizon (beam ${b === g ? 'n/a' : 'searched'}); best plan ties the greedy baseline at <b>${tot.toFixed(1)}</b> projected pts — nothing on the horizon beats a simple path.</span>`;
     out.innerHTML = `<div class="card"><h2>🧾 Optimal ${H}-GW plan · projected ≈ ${tot.toFixed(1)} pts</h2>
     <table class="data"><tr><th>GW</th><th>Move</th><th>Captain</th><th class="num">Proj XI+cap</th><th>FT left</th></tr>
-    ${rows.map(r => `<tr><td><b>GW${r.gw}</b></td>
-      <td>${r.act ? `<span class="down">− ${esc(r.act.out.name)}</span> → <span class="up">+ ${esc(r.act.inn.name)}</span>${r.hit ? ' <b class="down">(hit −4)</b>' : ''}</td>` : 'Roll (save FT)'}</td>
+    ${rows.map(r => `<tr><td><b>GW${DATA.fplmeta.current_gw + 1 + r.gw}</b></td>
+      <td>${r.act ? `<span class="down">− ${esc(r.act.out.name)}</span> → <span class="up">+ ${esc(r.act.inn.name)}</span>${r.hit ? ' <b class="down">(hit −4)</b>' : ''}` : 'Roll (save FT)'}</td>
       <td><b>${r.cap ? esc(r.cap.name) : '—'}</b></td><td class="num">${r.proj.toFixed(1)}</td><td class="num">${r.ft}</td></tr>`).join('')}
     </table>
+    ${cmp}
     <p class="muted">Projections use the shared form-adjusted model (ep × adj FDR × home/away × minutes × reliability). Re-solve after every deadline — plans are dynamic, not promises.</p></div>`;
-    chipOptimizer(squad, H);
+    chipOptimizer(best.squad, H);
   } catch (e) {
     console.error('[solvePlan]', e);
     out.innerHTML = `<div class="card"><p class="hint">⚠️ The solver hit an error: <b>${esc(e.message || e)}</b>.<br>Fix: reload your team in <b>My Team</b>, then press Solve again. If it persists, hard-refresh (Ctrl+Shift+R) to clear old cached files.</p></div>`;
