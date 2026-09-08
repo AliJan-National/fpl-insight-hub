@@ -678,6 +678,13 @@ function fxAvgN(p, n) {
 function hbar(pct, color) {
   return '<div class="x-bar"><div class="x-fill" style="width:' + Math.max(3, Math.min(100, pct)) + '%;background:' + color + '"></div></div>';
 }
+function teamDefLine(p) {
+  if (p.pos !== 'DEF' && p.pos !== 'GK') return '<div class="muted">' + p.team + ' attacking form #' + ((window.TF[p.team] || {}).rank ?? '?') + '</div>';
+  const tf = window.TF[p.team] || {};
+  const g = tf.xgd != null ? (tf.xgd >= 0 ? '+' : '') + (+tf.xgd).toFixed(2) : '?';
+  return '<div class="muted">🛡 ' + p.team + ' defence · form #' + (tf.rank ?? '?') + ' · xGD/g ' + g + '</div>';
+}
+
 function pairDecision(A, B, q0) {
   const ctx = window.TEAMCTX;
   const isCap = /captain|armband/.test(String(q0 || '').toLowerCase());
@@ -700,6 +707,8 @@ function pairDecision(A, B, q0) {
       + '<div style="display:flex;justify-content:space-between"><span class="muted">proj next GW</span><b>' + projP(p, 0).toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">5-GW total</span><b>' + t.toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">reliability</span><b>' + Math.round(r * 100) + '%</b></div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/270</b></div>'
+      + teamDefLine(p)
       + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
       + '</div>';
   };
@@ -711,6 +720,11 @@ function pairDecision(A, B, q0) {
   const leadR = lead === A ? rA : rB, trailR = lead === A ? rB : rA;
   if (trailR > leadR + 0.08) lines.push(esc(trail.name) + '\u2019s returns are more reliable (' + Math.round(trailR * 100) + '% vs ' + Math.round(leadR * 100) + '%) — the edge on ' + esc(lead.name) + ' leans on fixtures, so weigh floor vs ceiling.');
   if (Math.abs(fxA - fxB) > 0.35) lines.push('Fixture run differs: ' + esc((fxA < fxB ? A : B).name) + ' has the easier schedule (avg ' + Math.min(fxA, fxB).toFixed(1) + ' vs ' + Math.max(fxA, fxB).toFixed(1) + ' over 5).');
+  const loMin = (lead === A ? B : A), hiP = (lead === A ? A : B);
+  if (loMin.mins < 200 && hiP.mins - loMin.mins >= 90) {
+    const tf = window.TF[loMin.team] || {};
+    lines.push(esc(loMin.name) + ' has only ' + loMin.mins + '/270 minutes (selection risk) — ' + (tf.rank <= 3 ? 'his team (' + loMin.team + ') has an elite defence (form #' + tf.rank + ', xGD ' + (tf.xgd >= 0 ? '+' : '') + (+tf.xgd).toFixed(2) + '/g), but clean sheets only pay when he starts.' : 'the official next-GW projection (' + loMin.ep_next + ' vs ' + hiP.ep_next + ') already prices that uncertainty in.'));
+  }
   let personal = '';
   if (ctx && ctx.squad && ctx.squad.length) {
     const ownA = ctx.squad.some(s => s.e && s.e.n === A.name), ownB = ctx.squad.some(s => s.e && s.e.n === B.name);
