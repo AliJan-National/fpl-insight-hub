@@ -43,6 +43,8 @@ function renderAll() {
   $('#planSolve').onclick = () => { try { solvePlan(); } catch (e) { console.error('[solvePlan]', e); $('#planOut').innerHTML = '<div class="card"><p class="hint">⚠️ Solver error: <b>' + esc(e.message) + '</b>. Reload My Team and try again.</p></div>'; } };
   $('#wcHorizon').onchange = () => { WC_H = +$('#wcHorizon').value || 3; WC = null; renderWildcard(); };
   safe(renderCaptains, 'captains'); safe(renderPrices, 'prices');
+  safe(renderLedger, 'ledger');
+  safe(renderLabDigest, 'labDigest');
 }
 
 // ============ Captain & Prices ============
@@ -679,7 +681,81 @@ function renderWildcard() {
   }
 }
 
-// ============ Assistant (data-grounded copilot) ============
+// ============ 📋 DECISION-MATRIX TRACKER (P2 polish) ============
+// Honest, forward-looking: every model verdict the app gives (captain pick,
+// H2H winner, transfer call) is logged with its gameweek. Once that GW's real
+// results arrive, the ledger scores each call against the alternative(s) it
+// named, and shows a cumulative hit-rate matrix. It starts empty from GW4 and
+// grows every deadline — it will NOT pretend to have history it doesn't.
+const LD_KEY = 'fpl_ledger_v1';
+function ldGet() { try { return JSON.parse(localStorage.getItem(LD_KEY)) || []; } catch (e) { return []; } }
+function ldSet(a) { try { localStorage.setItem(LD_KEY, JSON.stringify(a.slice(-300))); } catch (e) { } }
+function ldKey(r) { return r.kind + '|' + r.gw + '|' + r.pickId; }
+function ldCurGw() { return (DATA.fplmeta && DATA.fplmeta.current_gw) || 3; }
+function ldRecord(kind, gw, o) {
+  if (!o || !o.pickId || !gw) return;
+  const a = ldGet();
+  const rec = { kind, gw, pickId: o.pickId, pickName: o.pickName || String(o.pickId),
+    altId: o.altId || null, altName: o.altName || null, note: o.note || '', ts: Date.now() };
+  const k = ldKey(rec);
+  const ix = a.findIndex(x => ldKey(x) === k);
+  if (ix >= 0) a[ix] = rec; else a.push(rec);
+  ldSet(a);
+  return rec;
+}
+// actual FPL points a player scored in gameweek g (from real history), null if unknown
+function ldActual(id, g) {
+  const rows = (DATA.history || {})[id];
+  if (!rows) return null;
+  const row = rows.find(r => r[0] === g);
+  return row ? row[1] : null;
+}
+function ldScored(rec) {
+  const cur = ldCurGw();
+  if (!rec || rec.gw > cur) return { rec, pending: true, pickPts: null, altPts: null, delta: null };
+  const pickPts = ldActual(rec.pickId, rec.gw);
+  const altPts = rec.altId != null ? ldActual(rec.altId, rec.gw) : null;
+  if (pickPts == null) return { rec, pending: true, pickPts: null, altPts: null, delta: null };
+  let outcome = null;
+  if (altPts != null) outcome = pickPts > altPts ? 'WON' : pickPts < altPts ? 'LOST' : 'TIED';
+  else if (pickPts >= 6) outcome = 'WON';            // no named rival: haul = good call
+  else outcome = 'REVIEW';                            // <6 without rival -> neutral review
+  return { rec, pending: false, pickPts, altPts, delta: altPts != null ? Math.round((pickPts - altPts) * 10) / 10 : null, outcome };
+}
+function ldStats() {
+  const all = ldGet().map(ldScored);
+  const done = all.filter(x => !x.pending);
+  const win = done.filter(x => x.outcome === 'WON').length;
+  const loss = done.filter(x => x.outcome === 'LOST').length;
+  const tie = done.filter(x => x.outcome === 'TIED').length;
+  const rev = done.filter(x => x.outcome === 'REVIEW').length;
+  const rate = win + loss ? Math.round(100 * win / (win + loss)) : null;
+  return { all, done, win, loss, tie, rev, rate, pending: all.length - done.length };
+}
+function ldRenderHtml() {
+  const st = ldStats();
+  const kindLabel = { captain: '👑 Captain', h2h: '⚖️ Pick', transfer: '🔄 Transfer' };
+  const rows = st.all.slice().reverse().slice(0, 40).map(x => {
+    const r = x.rec;
+    if (x.pending) return `<tr><td><b>GW${r.gw}</b></td><td>${kindLabel[r.kind] || r.kind}</td><td><b>${esc(r.pickName)}</b></td>
+      <td class="num"><span class="xb" style="--c:var(--amber)">awaiting GW${r.gw} result</span></td><td></td></tr>`;
+    const o = x.outcome === 'WON' ? '<span class="xb" style="--c:var(--green)">WON</span>'
+      : x.outcome === 'LOST' ? '<span class="xb" style="--c:var(--red)">LOST</span>'
+      : x.outcome === 'TIED' ? '<span class="xb" style="--c:var(--amber)">TIED</span>' : '<span class="muted">review</span>';
+    const altTxt = r.altId != null ? `vs ${esc(r.altName || r.altId)}` : '';
+    return `<tr><td><b>GW${r.gw}</b></td><td>${kindLabel[r.kind] || r.kind}</td><td><b>${esc(r.pickName)}</b> ${altTxt}</td>
+      <td class="num">${x.pickPts}${x.altPts != null ? ` vs ${x.altPts}` : ''} <b>${x.delta != null ? (x.delta >= 0 ? '+' : '') + x.delta : ''}</b></td><td>${o}</td></tr>`;
+  }).join('');
+  const header = st.rate != null
+    ? `Resolved: <b>${st.done.length}</b> (${st.win}W · ${st.loss}L · ${st.tie}D · ${st.rev} review) → model win-rate <b>${st.rate}%</b> vs the named alternative.`
+    : `Nothing resolved yet — every verdict below is logged now and scored when real GW${ldCurGw() + 1} results arrive.`;
+  return `<div class="card"><h2>📋 Decision Matrix <span class="muted">— did the model's calls pay off?</span></h2>
+    <p class="muted" style="margin:0 0 6px">${header} The ledger fills from GW${ldCurGw() + 1} as you ask for captain/H2H verdicts; it never fabricates a past record. Logged: ${st.pending} pending · ${st.done.length} scored.</p>
+    <div style="overflow-x:auto"><table class="data compact"><tr><th>GW</th><th>Type</th><th>Call (vs alternative)</th><th class="num">Real pts</th><th>Outcome</th></tr>${rows || '<tr><td colspan="5" class="muted">No decisions logged yet — ask the Copilot "who should I captain?" or any "X or Y" and it will appear here, scored after the deadline.</td></tr>'}</table></div>
+    <p class="muted" style="margin:6px 0 0">This is a self-audit: WON/LOST compares your pick to the named alternative's actual points in that GW. A small sample (or a strong rival) means a low win-rate is <b>not</b> proof the model is wrong — treat it as evidence accumulating week by week.</p></div>`;
+}
+
+// ============ Assistant (data-grounded copilot) ============// ============ Assistant (data-grounded copilot) ============
 function scout(p) {
   const d = (p.xg_diff || 0);
   const PP = playerProb(p);
@@ -694,7 +770,8 @@ function scout(p) {
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span><br>
   ${(() => { try { const o0 = (p.next3 || [])[0]; if (o0 && o0.opp && typeof osmOppLens === 'function') return '<span class="mrow">' + osmOppLens(o0.opp, p.pos) + '</span><br>'; return ''; } catch (e) { return ''; } })()}
   <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>
-  <span class="mrow">${distBar(p)}</span>`;
+  <span class="mrow">${distBar(p)}</span>
+  ${typeof playerScheduleSVG === 'function' ? `<span class="mrow" style="margin-top:8px">${playerScheduleSVG(p)}</span>` : ''}`;
 }
 function normName(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -833,6 +910,7 @@ function pairDecision(A, B, q0) {
       personal = '<span class="mrow">You own neither. ' + esc(A.name) + ': ' + (A.cost <= ctx.maxFund ? '£' + A.cost + 'm fits your budget' : '£' + A.cost + 'm exceeds your £' + ctx.maxFund.toFixed(1) + 'm budget') + ' · ' + esc(B.name) + ': ' + (B.cost <= ctx.maxFund ? '£' + B.cost + 'm fits your budget' : '£' + B.cost + 'm exceeds your £' + ctx.maxFund.toFixed(1) + 'm budget') + '.</span>';
     }
   }
+  try { if (typeof ldRecord === 'function' && lead && lead.id) ldRecord(isCap ? 'captain' : 'h2h', ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + 1, { pickId: lead.id, pickName: lead.name, altId: trail.id, altName: trail.name }); } catch (e) {}
   return '<div class="card" style="grid-column:1/-1">'
     + '<h2>⚖️ ' + (isCap ? 'Captain decision' : 'Who to pick?') + ' — ' + esc(A.name) + ' vs ' + esc(B.name) + '</h2>'
     + '<div style="display:flex;gap:18px;flex-wrap:wrap">' + row(A, tA, rA) + row(B, tB, rB) + '</div>'
@@ -913,6 +991,7 @@ function askAI(q) {
   if (/captain|armband/.test(Q)) {
     if (ctx) {
       const ranked = ctx.squad.map(s => ({ s, c: s.cap })).sort((a, b) => b.c - a.c).slice(0, 3);
+      try { if (typeof ldRecord === 'function' && ranked[0]) { const tid = ranked[0].s && ranked[0].s.r && ranked[0].s.r.element; if (tid) ldRecord('captain', ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + 1, { pickId: tid, pickName: ranked[0].s.e ? ranked[0].s.e.n : String(tid), altId: (ranked[1] && ranked[1].s.r && ranked[1].s.r.element) || null, altName: ranked[1] && ranked[1].s.e ? ranked[1].s.e.n : null }); } } catch (e) {}
       let lev = '';
       if (window.ML && ML.ready && ML.capCands && ML.capCands.length) {
         const field = ML.capCands.slice().sort((a, b) => (b.rivCap || 0) - (a.rivCap || 0) || (b.x.ep || 0) - (a.x.ep || 0))[0];
@@ -1021,6 +1100,11 @@ function askAI(q) {
   if (pl) return scout(pl);
   return `I can help with: <b>captain</b> picks, <b>sell/buy</b> advice (budget-aware), <b>bench</b> choices, <b>injuries</b>, <b>chips</b>, <b>fixtures</b>, your <b>mini league</b> ("how do I win my mini league?", "should I take a hit?"), any <b>player scout report</b> ("Haaland?"), "best DEF under 6m", or <b>wildcard</b> strategy. ${ctx ? '' : 'Tip: load your team in My Team for personalised answers.'}`;
 }
+function renderLedger() {
+  const el = $('#ledgerOut'); if (!el) return;
+  try { el.innerHTML = ldRenderHtml(); } catch (e) { console.error('[ledger]', e); el.innerHTML = ''; }
+}
+
 function chat(q) {
   const log = $('#chatLog');
   log.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(q)}</div>`);
@@ -1654,6 +1738,83 @@ const shapeOK = (squad, out, inn) => {
   return c.GK >= 1 && c.GK <= 2 && c.DEF >= 3 && c.DEF <= 5 && c.MID >= 3 && c.MID <= 5 && c.FWD >= 2 && c.FWD <= 3;
 };
 
+// P2 polish: per-player "schedule strip" — REAL past form (bars) + next-5
+// projection (dashed line) with the opponent & difficulty colouring each GW.
+function pfxCol(fdr) {
+  const i = Math.max(0, Math.min(4, (Math.round(+fdr) || 3) - 1));
+  return ['#2dd4a7', '#82c91e', '#e6a23c', '#ffa94d', '#ff6b6b'][i];
+}
+function playerScheduleSVG(p, opts) {
+  const o = opts || {};
+  const W = o.w || 560, Hpx = o.h || 178, PL = 26, PR = 6, PT = 12, PB = 44;
+  const rows = (DATA.history || {})[p.id] || [];
+  const cur = (DATA.fplmeta && DATA.fplmeta.current_gw) || 3;
+  const real = rows.filter(r => (r[0] || 0) <= cur)
+    .map(r => ({ g: r[0], pts: r[1] || 0, st: (r[4] || 0) >= 60 }))
+    .sort((a, b) => a.g - b.g);
+  const projFn = (typeof projP === 'function') ? projP : () => (+(p.ep_next || 0));
+  const fut = [];
+  for (let i = 0; i < 5; i++) {
+    const f = (p.next3 || [])[i] || null;
+    fut.push({ g: cur + 1 + i, proj: projFn(p, i), f });
+  }
+  const xs = [];
+  real.forEach(r => xs.push({ t: 'r', g: r.g, pts: r.pts, st: r.st, proj: r.pts }));
+  fut.forEach(x => xs.push({ t: 'f', g: x.g, proj: x.proj, f: x.f, opp: (x.f && x.f.opp) || '—', ha: (x.f && x.f.ha) || '?' }));
+  if (!xs.length) return '';
+  const X = i => PL + (W - PL - PR) * (xs.length === 1 ? 0.5 : i / (xs.length - 1));
+  const yMax = Math.max(4, Math.ceil(Math.max.apply(null, xs.map(x => x.proj)) * 1.15));
+  const Y = v => PT + (Hpx - PT - PB) * (1 - v / yMax);
+  let g = '';
+  // gridlines + y labels
+  for (let t = 0; t <= 4; t++) {
+    const v = yMax * t / 4, y = Y(v);
+    g += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,${t === 0 ? 0.25 : 0.06})"/>`;
+    g += `<text x="${PL - 5}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8a93a6">${Math.round(v)}</text>`;
+  }
+  const realXs = [], futXs = [];
+  xs.forEach((x, i) => {
+    if (x.t === 'r') realXs.push({ i, x });
+    else futXs.push({ i, x });
+  });
+  // real form bars
+  realXs.forEach(({ i, x }) => {
+    const h = Math.max(1.5, (x.pts / yMax) * (Hpx - PT - PB));
+    const fill = !x.st ? '#4a5568' : x.pts >= 6 ? '#00ff85' : '#4dc3ff';
+    const op = !x.st ? 0.6 : 0.9;
+    g += `<rect x="${(X(i) - 7).toFixed(1)}" y="${(Y(x.pts) - 2).toFixed(1)}" width="14" height="${h.toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>GW${x.g}: ${x.pts} pts${x.st ? '' : ' (sub/bench)'}</title></rect>`;
+  });
+  // future projection line + dots + fixture labels
+  if (futXs.length) {
+    const pts = futXs.map(({ i, x }) => `${X(i).toFixed(1)},${Y(x.proj).toFixed(1)}`).join(' ');
+    g += `<polyline points="${pts}" fill="none" stroke="#ffd166" stroke-width="2" stroke-dasharray="5 3"/>`;
+    futXs.forEach(({ i, x }) => {
+      const c = x.f && x.f.afdr != null ? pfxCol(x.f.afdr) : (x.f && x.f.fdr != null ? pfxCol(x.f.fdr) : '#e6a23c');
+      g += `<circle cx="${X(i).toFixed(1)}" cy="${Y(x.proj).toFixed(1)}" r="4" fill="${c}" stroke="#0b0e17" stroke-width="1"><title>GW${x.g}: proj ${x.proj.toFixed(1)}</title></circle>`;
+    });
+  }
+  // divider between real & future
+  if (realXs.length && futXs.length) {
+    const dx = (X(realXs[realXs.length - 1].i) + X(futXs[0].i)) / 2;
+    g += `<line x1="${dx.toFixed(1)}" y1="${PT}" x2="${dx.toFixed(1)}" y2="${Hpx - PB}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 3"/>`;
+  }
+  // x labels: real GW numbers, then GW + opponent(+ha) + coloured difficulty
+  xs.forEach((x, i) => {
+    if (x.t === 'r') {
+      g += `<text x="${X(i).toFixed(1)}" y="${Hpx - PB + 12}" text-anchor="middle" font-size="9.5" fill="#8a93a6">GW${x.g}</text>`;
+      return;
+    }
+    const c = x.f && x.f.afdr != null ? pfxCol(x.f.afdr) : (x.f && x.f.fdr != null ? pfxCol(x.f.fdr) : '#e6a23c');
+    const fd = x.f ? (x.f.afdr ?? x.f.fdr) : '—';
+    g += `<text x="${X(i).toFixed(1)}" y="${Hpx - PB + 12}" text-anchor="middle" font-size="8.5" fill="#8a93a6">GW${x.g}</text>`;
+    g += `<text x="${X(i).toFixed(1)}" y="${Hpx - PB + 24}" text-anchor="middle" font-size="9.5" fill="#e8ecf4">${x.opp}${x.ha === 'H' ? '(H)' : x.ha === 'A' ? '(A)' : ''}</text>`;
+    g += `<text x="${X(i).toFixed(1)}" y="${Hpx - PB + 36}" text-anchor="middle" font-size="9" font-weight="700" fill="${c}">${fd}</text>`;
+  });
+  return `<svg width="${W}" height="${Hpx}" viewBox="0 0 ${W} ${Hpx}" style="max-width:100%;background:rgba(255,255,255,.035);border-radius:8px">
+    <text x="${PL}" y="${PT - 2}" font-size="10" fill="#8a93a6">GW1-${cur} real pts <tspan fill="#00ff85">■</tspan> &nbsp;·&nbsp; GW${cur + 1}+ projection <tspan fill="#ffd166">╌</tspan> · dot colour = fixture difficulty (green easy → red hard)</text>
+    ${g}</svg>`;
+}
+
 function sparkSVG(id, w = 110, h = 30) {
   const s = (DATA.history || {})[id];
   if (!s || !s.length) return '';
@@ -1959,6 +2120,46 @@ function btCalibTable(res) {
     <div style="overflow-x:auto"><table class="data compact"><tr><th>Predicted band</th><th class="num">n</th><th class="num">Mean predicted</th><th class="num">Actually returned</th><th>Verdict</th></tr>${rows}</table></div>
     <p class="muted" style="margin-top:6px">${skill} · Brier ${res.brier.toFixed(4)} vs baseline ${res.brierConst.toFixed(4)}. This is a GW1-3 pilot — the table becomes trustworthy as each deadline adds real test GWs.</p></div>`;
 }
+// P3 polish: compact weekly Lab digest shown on the Overview — last GW's honest
+// verdicts at a glance (return-chance calibration, rolling test, decision matrix).
+function labDigestHtml() {
+  const cur = (DATA.fplmeta && DATA.fplmeta.current_gw) || 3;
+  const res = btOOF({ K: 2 });
+  const roll = cur > 1 ? btRoll(cur) : null;
+  const calib = (res && res.nTotal)
+    ? (Math.abs(res.observed - res.meanPred) <= 7
+        ? `<span class="xb" style="--c:var(--green)">✓ well calibrated</span>`
+        : `<span class="xb" style="--c:var(--amber)">calibration drifting</span>`)
+    : 'awaiting first test GW';
+  const skill = (res && res.nTotal)
+    ? (res.brier < res.brierConst
+        ? '<span class="xb" style="--c:var(--green)">model edges the baseline</span>'
+        : '<span class="xb" style="--c:var(--amber)">baseline still wins — keep accumulating</span>')
+    : '';
+  const rollTxt = roll && roll.n >= 60
+    ? `form→next-GW r = <b>${roll.r}</b> (n=${roll.n}) — ${Math.abs(roll.r) < 0.12 ? 'a single GW of form barely predicts the next, as expected this early' : 'a genuine signal is emerging'}.`
+    : roll ? `GW${roll.g} rolling test needs more starters (n=${roll.n}).` : 'rolling test pending more GWs.';
+  let ldTxt = '';
+  try { if (typeof ldStats === 'function') { const st = ldStats(); ldTxt = st.rate != null
+      ? `Decision matrix: <b>${st.done.length}</b> resolved (${st.win}W/${st.loss}L) → model win-rate <b>${st.rate}%</b>.`
+      : `Decision matrix: logging starts GW${cur + 1} — <b>${st.pending}</b> verdict${st.pending === 1 ? '' : 's'} already queued to self-audit.`; } } catch (e) { }
+  const stat = (v, k) => `<div class="dq"><b>${v}</b><span>${k}</span></div>`;
+  return `<div class="card x-card" style="grid-column:1/-1"><h2 style="margin-bottom:2px">🧪 Weekly Lab digest <span class="muted">— GW${cur} verdict, in plain words</span></h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px" class="x-dq">
+      ${stat(res && res.nTotal ? res.observed + '%' : '—', 'players actually returned')}
+      ${stat(res && res.nTotal ? res.meanPred + '%' : '—', 'mean predicted chance')}
+      ${stat(calib, 'return-chance calibration')}
+      ${stat(skill || (res ? res.brier.toFixed(3) : '—'), 'out-of-sample Brier')}
+    </div>
+    <p class="muted" style="margin:8px 0 0">${rollTxt}</p>
+    <p class="muted" style="margin:4px 0 0">${ldTxt || ''}</p>
+    <p class="muted" style="margin:4px 0 0">Everything here is out-of-sample and labelled — GW1-${cur} is a pilot; the Lab tab (📅 Planner) has the full method and tables. ${skill ? '' : ''}</p></div>`;
+}
+function renderLabDigest() {
+  const el = $('#labDigest'); if (!el) return;
+  try { el.innerHTML = labDigestHtml(); } catch (e) { console.error('[labDigest]', e); el.innerHTML = ''; }
+}
+
 function renderBacktest() {
   const el = $('#btOut'); if (!el) return;
   try {
@@ -2025,6 +2226,26 @@ function cmpChartSVG(ps, H) {
   return `<svg viewBox="0 0 ${W} ${Hpx}" style="width:100%;height:auto;display:block;background:rgba(255,255,255,.02);border-radius:10px" role="img"><title>Projected points per gameweek</title>${g}</svg>`;
 }
 
+// P2/P3 polish: full next-GW outcome-spread comparison chart (probability, not a point)
+function distCompareCard(ps) {
+  const bands = [['≤0', '#5a6a85'], ['1–2', '#7a8bb0'], ['3–5', '#e6a23c'], ['6–9', '#4cd964'], ['10+', '#2dd4a7']];
+  const rows = ps.map(p => {
+    const D = distOf(p);
+    const bar = D.prob.map((x, i) =>
+      `<div style="flex:${Math.max(1, Math.round(x * 1000))};background:${bands[i][1]};min-width:${x > 0.04 ? 16 : 2}px;height:15px" title="${bands[i][0]}: ${Math.round(x * 100)}%"></div>`).join('');
+    const pct = D.prob.map((x, i) =>
+      `<span class="tk-opp" style="min-width:58px">${bands[i][0]} <b>${Math.round(x * 100)}%</b></span>`).join('');
+    return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(p.name)}</b>
+      <span class="muted">mid ≈ ${D.mean.toFixed(1)} · haul ${Math.round(D.prob[4] * 100)}% · blank ${Math.round(D.prob[0] * 100)}%</span></div>
+      <div style="display:flex;gap:2px;height:15px;border-radius:3px;overflow:hidden;margin:5px 0;background:rgba(255,255,255,.06)">${bar}</div>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap">${pct}</div></div>`;
+  }).join('');
+  const legend = bands.map(b => `<span style="margin-right:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${b[1]};margin-right:4px;vertical-align:middle"></span>${b[0]} pts</span>`).join('');
+  return `<div class="card" style="grid-column:1/-1"><h2>🎲 Next-GW outcome spread <span class="muted">— the probability shape, not a single number</span></h2>
+    <div class="muted" style="margin:2px 0 4px">${legend}</div>${rows}
+    <p class="muted" style="margin:4px 0 0">Bars always total 100% and the 6–9 + 10+ tails equal P(≥6)/P(≥10). "Mid" = probability-weighted expectation from real GW1-${(DATA.fplmeta && DATA.fplmeta.current_gw) || 3} results. Compare <b>shapes</b>: right-shifted = steady returns + real hauls; squat &amp; low = frequent blanks. Model estimate — not a promise.</p></div>`;
+}
+
 function renderCompare() {
   const pick = id => findPlayer(($('#' + id).value || '').toLowerCase());
   const ps = [pick('cmpA'), pick('cmpB'), pick('cmpC')].filter(Boolean);
@@ -2071,6 +2292,7 @@ function renderCompare() {
     <div class="cmp-legend">${uniq.map((p, k) => `<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${CMP_COLORS[k]};margin-right:5px"></span><b>${esc(p.name)}</b> <span class="muted">${totals[k].toFixed(1)} pts</span></span>`).join('')}</div>
     ${cmpChartSVG(uniq, H)}
     <p class="muted" style="margin:6px 0 0">Fixture under each GW (number = difficulty) · gold ring = model's best that week · hover dots for values.</p></div>
+    ${distCompareCard(uniq)}
     <div class="card" style="grid-column:1/-1"><h2>📆 Gameweek breakdown <span class="muted">— ★ = model's pick each week</span></h2>
     <div style="overflow-x:auto"><table class="data"><tr><th></th>${uniq.map((p, k) => `<th class="num"><span style="color:${CMP_COLORS[k]}">●</span> ${esc(p.name)}</th>`).join('')}</tr>
     ${gwRows}<tr><td><b>Total</b></td>${uniq.map((p, k) => `<td class="num"><b style="color:${CMP_COLORS[k]}">${totals[k].toFixed(1)}</b></td>`).join('')}</tr></table></div></div>
