@@ -172,11 +172,16 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     const e = elById[r.element];
     const t = e ? teamById[e.t] : null;
     const fxs = t ? (NEXT[t.code] || []) : [];
-    return { r, e, t, fxs, pos: e ? e.et : 2, ep: e ? (e.ep || 0) : 0,
+    // v30 single forecast brain: s.ep = OUR model xP when the player is in the
+    // catalog (official FPL ep_next stays available as s.oep for reference).
+    const mxp = e ? modelXpById(r.element) : null;
+    return { r, e, t, fxs, pos: e ? e.et : 2,
+      ep: mxp != null ? mxp : (e ? (e.ep || 0) : 0),
+      oep: e ? (e.ep || 0) : 0, mxFromModel: mxp != null,
       a3: avg(fxs, 3), a5: avg(fxs, 5), flagged: !!(e && e.s && e.s !== 'a') };
   }).sort((a, b) => a.r.position - b.r.position);
   const ownedIds = new Set(squad.map(s => s.r.element));
-  const capScore = s => s.ep * (fdrMult[(s.fxs[0] || {}).afdr || (s.fxs[0] || {}).fdr || 3] || 1) * (((s.fxs[0] || {}).ha) === 'H' ? 1.03 : 0.97) * (0.9 + 0.1 * ownForm(s));
+  const capScore = s => (s.ep != null ? s.ep : 0); // captain rank == the model xP (single voice)
 
     // ---- Projected best XI: legal 11-man FPL formation (fixes the old 9-player cut) ----
   const xi = bestXI(squad, s => s.ep) || squad.slice(0, 11);
@@ -201,7 +206,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   });
 
   // ---- XI summary (11 cells; bench holds the remaining 4) ----
-  const xiCells = xi.map(s => `<div class="xi-cell ${capPick && s.r.element === capPick.r.element ? 'capt' : ''}">
+  const xiCells = xi.map(s => `<div class="xi-cell ${capPick && s.r.element === capPick.r.element ? 'capt' : ''}" title="${s.mxFromModel ? 'model xP ' + s.ep.toFixed(1) + ' · official FPL xP ' + s.oep.toFixed(1) : 'model xP (official FPL fallback)'}">
       <div>${esc(s.e ? s.e.n : '?')}</div><div class="ep">${s.ep.toFixed(1)}</div>
       <div class="fn">${posName[s.pos]} · ${(s.fxs[0] || {}).opp || '—'}${(s.fxs[0] || {}).ha === 'H' ? '(H)' : '(A)'}</div>
     </div>`).join('');
@@ -229,7 +234,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
       ${capt}<span class="pos ${posName[s.pos]}">${posName[s.pos]}</span>
       <span class="nm">${esc(s.e.n)}${s.flagged ? ' ⚠️' : ''}${vd} <span class="team-tag">${s.t ? s.t.short : ''}</span></span>
       <span class="fix">${fxTxt}</span>
-      <span class="team-tag" title="projected next GW">ep ${s.ep.toFixed(1)}</span>
+      <span class="team-tag" title="${s.mxFromModel ? 'model xP ' + s.ep.toFixed(1) + ' · official FPL xP ' + s.oep.toFixed(1) : 'model xP (fallback to official FPL xP)'}">xP ${s.ep.toFixed(1)}</span>
       <b class="pts">${s.e.pts ?? '—'}</b><span class="team-tag">£${(s.e.c / 10).toFixed(1)}</span>
     </div>`;
   }).join('');
@@ -245,7 +250,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     if ((f0.fdr || 3) <= 2) reasons.push(`Easy GW${f0.gw}: ${f0.opp}(${f0.ha})`);
     else if ((f0.fdr || 3) >= 4) reasons.push(`Tough GW${f0.gw}: ${f0.opp}(${f0.ha})`);
     if (frm >= 7) reasons.push(`In form (${frm})`);
-    if (s.ep >= 7) reasons.push(`High ep (${s.ep.toFixed(1)})`);
+    if (s.ep >= 7) reasons.push(`High xP (${s.ep.toFixed(1)})`);
     return `
     <div class="sig-card">
       <div class="rank">${i + 1}</div>
@@ -255,7 +260,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
         <div class="sig-reasons">${reasons.map(r => `<span class="reason">${esc(r)}</span>`).join('') || `<span class="reason">form ${frm}</span>`}</div>
         ${ML.ready ? `<div class="sig-reasons">${ML.capLens(s)}</div>` : ''}
       </div>
-      <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">cap score<br>form ${frm}</div></div>
+      <div class="sig-pts"><div class="pts">${s.cap.toFixed(1)}</div><div class="sig-meta">model xP<br>form ${frm}</div></div>
     </div>`;
   }).join('') || '<p class="hint">—</p>';
 
@@ -265,20 +270,19 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   for (const s of squad) {
     if (!s.verdicts.some(v => v[0] === 'SELL?') || !s.e) continue;
     const funds = bank + s.e.c / 10;
-    const best = DATA.players
+    const cand = DATA.players
       .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && adjAvg3(p) <= 2.9)
-      .sort((a, b) => (b.ep_next + ownForm(b)) - (a.ep_next + ownForm(a)))
-      .map(p => ({ p, sc: (p.ep_next || 0) + p.form * 0.5 }))
-      .sort((a, b) => b.sc - a.sc)[0];
-    if (best && best.p.ep_next - s.ep > 0.4) pairs.push({ out: s, in: best.p, delta: best.p.ep_next - s.ep, funds });
+      .map(p => { const f = forecastOf(p); return { p, xp: f ? f.xp : Math.round(((p.ep_next || 0) + (p.form || 0) * 0.5) * 10) / 10 }; })
+      .sort((a, b) => b.xp - a.xp)[0];
+    if (cand && cand.xp - s.ep > 0.4) pairs.push({ out: s, in: cand.p, delta: cand.xp - s.ep, inX: cand.xp, funds });
   }
   pairs.sort((a, b) => b.delta - a.delta);
   $('#pairsList').innerHTML = pairs.slice(0, 3).map(pr => `
     <div class="pair-card">
-      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · £${(pr.out.e.c / 10).toFixed(1)}m · ep ${pr.out.ep.toFixed(1)}</span></div>
+      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · £${(pr.out.e.c / 10).toFixed(1)}m · xP ${pr.out.ep.toFixed(1)}</span></div>
       <span class="arrow">→</span>
-      <div class="who"><b class="up">${esc(pr.in.name)}</b> <span class="team-tag">${pr.in.team} · £${pr.in.cost}m · ep ${pr.in.ep_next}</span></div>
-      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">Δ/GW · funds £${pr.funds.toFixed(1)}m ✓</div></div>
+      <div class="who"><b class="up">${esc(pr.in.name)}</b> <span class="team-tag">${pr.in.team} · £${pr.in.cost}m · xP ${pr.inX.toFixed(1)}</span></div>
+      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">Δ xP/GW · funds £${pr.funds.toFixed(1)}m ✓</div></div>
     </div>`).join('') || '<p class="hint">No affordable, clearly positive moves right now — holding is fine.</p>';
 
   // ---- GW-by-GW game plan (hold / bench-sell / buy) ----
@@ -286,7 +290,7 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   const maxFund = bank + (benchVals[0] || 0) + 0.05;
   const planHtml = [0, 1, 2].map(i => {
     const g = firstGw + i;
-    const scored = squad.map(s => ({ s, f: s.fxs[i], sc: s.ep * (fdrMult[(s.fxs[i] || {}).afdr || (s.fxs[i] || {}).fdr || 3] || 1) * (0.9 + 0.1 * ownForm(s)) }))
+    const scored = squad.map(s => ({ s, f: s.fxs[i], sc: (s.oep || s.ep) * (fdrMult[(s.fxs[i] || {}).afdr || (s.fxs[i] || {}).fdr || 3] || 1) * (0.9 + 0.1 * ownForm(s)) }))
       .filter(x => x.f);
     const holds = scored.filter(x => x.f.fdr <= 3).sort((a, b) => b.sc - a.sc).slice(0, 3);
     const risks = scored.filter(x => x.f.fdr >= 4).sort((a, b) => a.f.fdr - b.f.fdr).slice(0, 3);
@@ -760,6 +764,7 @@ function scout(p) {
   const d = (p.xg_diff || 0);
   const PP = playerProb(p);
   const PS = startProb(p); const SL = selLabel(PS);
+  const F = (typeof forecastOf === 'function') ? forecastOf(p) : null;
   return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
   <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
   <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
@@ -770,6 +775,7 @@ function scout(p) {
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span><br>
   ${(() => { try { const o0 = (p.next3 || [])[0]; if (o0 && o0.opp && typeof osmOppLens === 'function') return '<span class="mrow">' + osmOppLens(o0.opp, p.pos) + '</span><br>'; return ''; } catch (e) { return ''; } })()}
   <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>
+  ${F && typeof fcMetaLine === 'function' ? fcMetaLine(F) : ''}
   <span class="mrow">${distBar(p)}</span>
   ${typeof playerScheduleSVG === 'function' ? `<span class="mrow" style="margin-top:8px">${playerScheduleSVG(p)}</span>` : ''}`;
 }
@@ -998,15 +1004,20 @@ function askAI(q) {
         const top = ranked[0];
         if (field && top && top.s && top.s.e) {
           const topId = top.s.r && top.s.r.element;
-          const L = capLev({ name: top.s.e.n, ep: top.s.ep, p6: (ppOfId(topId) || {}).p6, p10: (ppOfId(topId) || {}).p10 },
-                           { name: field.x.e.n, ep: field.x.ep, p6: (ppOfId(field.x.id) || {}).p6, p10: (ppOfId(field.x.id) || {}).p10 });
+          // v30 single forecast brain: both sides read the SAME model forecast when in the catalog
+          const topF = (typeof fcOfId === 'function') ? fcOfId(topId) : null;
+          const fieldF = (typeof fcOfId === 'function') ? fcOfId(field.x.id) : null;
+          const topXp = topF ? topF.xp : top.s.ep;
+          const fieldXp = fieldF ? fieldF.xp : field.x.ep;
+          const L = capLev({ name: top.s.e.n, ep: topXp, p6: topF ? topF.p6 : (ppOfId(topId) || {}).p6, p10: topF ? topF.p10 : (ppOfId(topId) || {}).p10 },
+                           { name: field.x.e.n, ep: fieldXp, p6: fieldF ? fieldF.p6 : (ppOfId(field.x.id) || {}).p6, p10: fieldF ? fieldF.p10 : (ppOfId(field.x.id) || {}).p10 });
           const col = capLevColor(L.cls);
           const same = top.s.e.n === field.x.e.n;
-          lev = `<br><span class="mrow">⚔️ Captain leverage vs your mini league: ${same ? `rivals also mostly captain <b>${esc(field.x.e.n)}</b> (${field.rivCap}/${ML.n}) — zero leverage, which is exactly the safe play` : `the field (${field.rivCap}/${ML.n} rivals) is on <b>${esc(field.x.e.n)}</b> (ep ${field.x.ep.toFixed(1)}); your top option <b>${esc(top.s.e.n)}</b> (ep ${top.s.ep.toFixed(1)}) is <b style="color:${col}">${(L.eEp > 0 ? '+' : '')}${L.eEp.toFixed(1)} ep</b> vs the field · ${L.txt}`}. Leverage = model estimate, single-GW.</span>`;
+          lev = `<br><span class="mrow">⚔️ Captain leverage vs your mini league: ${same ? `rivals also mostly captain <b>${esc(field.x.e.n)}</b> (${field.rivCap}/${ML.n}) — zero leverage, which is exactly the safe play` : `the field (${field.rivCap}/${ML.n} rivals) is on <b>${esc(field.x.e.n)}</b> (xP ${fieldXp.toFixed(1)}); your top option <b>${esc(top.s.e.n)}</b> (xP ${topXp.toFixed(1)}) is <b style="color:${col}">${(L.eEp > 0 ? '+' : '')}${L.eEp.toFixed(1)} xP</b> vs the field · ${L.txt}`}. Leverage = model estimate, single-GW.</span>`;
         }
       }
-      return `For <b>GW${ctx.picksGw + 1}</b>, your captain options ranked by fixture-adjusted projection:<br>` +
-        ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), adj FDR ${(x.s.fxs[0] || {}).afdr ?? (x.s.fxs[0] || {}).fdr ?? 3}, ep ${x.s.ep.toFixed(1)} → score ${x.c.toFixed(1)}</span>`).join('') +
+      return `For <b>GW${ctx.picksGw + 1}</b>, your captain options ranked by model projection (xP):<br>` +
+        ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), adj FDR ${(x.s.fxs[0] || {}).afdr ?? (x.s.fxs[0] || {}).fdr ?? 3}, model xP ${x.s.ep.toFixed(1)}</span>`).join('') +
         `<br><span class="mrow">Verdict: <b>${esc(ranked[0].s.e.n)}</b> is the standout${ranked[1] ? '; ' + esc(ranked[1].s.e.n) + ' the safe vice.' : '.'}</span>` + lev;
     }
     const g0 = DATA.captains[0];
@@ -1016,7 +1027,7 @@ function askAI(q) {
       const col = capLevColor(L.cls);
       return `<b>${esc(c.name)}</b> (ep ${c.ep}) <b style="color:${col}">${(L.eEp > 0 ? '+' : '')}${L.eEp.toFixed(1)}</b> vs #1`;
     }).join(', ');
-    return `Global captain picks this GW (edge vs the #1 field pick, from the same model): ${pickTxt}.<br>`
+    return `Global captain picks this GW (official FPL xP / ep_next — not our model) with edge vs the #1 field pick: ${pickTxt}.<br>`
       + `<span class="mrow">💡 Captain choice is <b>leverage</b>: an expected edge over the field only matters if you own the pick and rivals don't captain it. Load your team + mini league for a personalised verdict.</span>`;
   }
   if (/wildcard/.test(Q)) {
@@ -1051,7 +1062,7 @@ function askAI(q) {
   if (/bench/.test(Q)) {
     if (!ctx) return 'Load your team first (My Team tab) so I can rank your bench.';
     const b = ctx.squad.slice().sort((a, b2) => b2.cap - a.cap).slice(-4);
-    return `For GW${ctx.picksGw + 1}, your weakest projections (bench them):<br>` + b.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${((s.fxs[0] || {}).opp) || '—'}(${(s.fxs[0] || {}).ha || '?'} adj FDR ${(s.fxs[0] || {}).afdr ?? (s.fxs[0] || {}).fdr ?? 3}), ep ${s.ep.toFixed(1)}</span>`).join('') + `<br><span class="mrow">Bench waste if all sit: ${b.reduce((s, x) => s + x.ep, 0).toFixed(1)} pts.</span>`;
+    return `For GW${ctx.picksGw + 1}, your weakest projections (bench them):<br>` + b.map(s => `<span class="mrow">• <b>${esc(s.e.n)}</b> — ${((s.fxs[0] || {}).opp) || '—'}(${(s.fxs[0] || {}).ha || '?'} adj FDR ${(s.fxs[0] || {}).afdr ?? (s.fxs[0] || {}).fdr ?? 3}), model xP ${s.ep.toFixed(1)}</span>`).join('') + `<br><span class="mrow">Bench waste if all sit: ${b.reduce((s, x) => s + x.ep, 0).toFixed(1)} model xP.</span>`;
   }
   if (/(injur|fit|doubt|hurt|return)/.test(Q)) {
     const flagged = ctx ? ctx.squad.filter(s => s.flagged) : [];
@@ -1430,15 +1441,17 @@ async function mlBuild(youId) {
 
   const capField = capCands.slice().sort((a,b)=>(b.rivCap||0)-(a.rivCap||0)||(b.x.ep||0)-(a.x.ep||0))[0] || null;
   const capFieldPP = capField ? ppOfId(capField.x.id) : null;
+  // v30 single forecast brain: model xP when the player is in the catalog, else official ep
+  const ccXpOf = cc => { const f = (typeof fcOfId === 'function') ? fcOfId(cc.x.id) : null; return f ? f.xp : cc.x.ep; };
   const levFor = cc => {
     if (!capField) return '';
     if (cc === capField || cc.x.id === capField.x.id) return ' <span class="xb" style="--c:var(--amber)">field</span>';
-    const p = ppOfId(cc.x.id);
-    return '<br>' + capLevLine({ name: cc.x.e.n, ep: cc.x.ep, p6: p && p.p6, p10: p && p.p10 },
-      { name: capField.x.e.n, ep: capField.x.ep, p6: capFieldPP && capFieldPP.p6, p10: capFieldPP && capFieldPP.p10 });
+    const cf = (typeof fcOfId === 'function') ? fcOfId(cc.x.id) : null;
+    return '<br>' + capLevLine({ name: cc.x.e.n, ep: ccXpOf(cc), p6: cf ? cf.p6 : (ppOfId(cc.x.id) || {}).p6, p10: cf ? cf.p10 : (ppOfId(cc.x.id) || {}).p10 },
+      { name: capField.x.e.n, ep: ccXpOf(capField), p6: capFieldPP && capFieldPP.p6, p10: capFieldPP && capFieldPP.p10 });
   };
   $('#mlCap').innerHTML = `<div class="card"><h2>👑 Captaincy — ML lens</h2>
-    ${capCands.map((cc, i) => `<span class="mrow">${i + 1}. <b>${esc(cc.x.e.n)}</b> ep ${cc.x.ep.toFixed(1)} <span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">${cc.rivCap}/${n} rivals captain him</span>${levFor(cc)}</span><br>`).join('')}
+    ${capCands.map((cc, i) => `<span class="mrow">${i + 1}. <b>${esc(cc.x.e.n)}</b> xP ${ccXpOf(cc).toFixed(1)} <span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">${cc.rivCap}/${n} rivals captain him</span>${levFor(cc)}</span><br>`).join('')}
     <p style="margin-top:6px">⚖️ Field captain = what most of your rivals currently captain (latest picks — may change at deadline). Engine pick for <b>${mode}</b> mode: <b>${esc(capPick.x.e.n)}</b> — ${capPick.cls === 'SAFE' ? 'matching the field protects your position.' : capPick.cls === 'BALANCED' ? 'solid points with a slight edge over some rivals.' : 'the upside edge your gap requires; rivals won\'t match it.'}</p>
     <p class="muted" style="margin-top:4px">Leverage = expected-pts edge of your captain vs the field's, plus haul-chance edge. +ve means you are expected to beat the field by that many pts this GW — model estimate, single-GW, not a promise.</p>
   </div>`;
@@ -1556,6 +1569,85 @@ const projP = (p, i) => {
   return base * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
+
+// ============ ONE FORECAST OBJECT (audit P0 · v30) ============
+// Every decision surface reads forecastOf(p) — one canonical per-GW object that
+// carries xP, return chances, the outcome spread, minutes and confidence from
+// the SAME spine, so those numbers can never silently come from two different
+// models again. Official FPL ep_next is kept only as a labelled reference field.
+// Everything is a deterministic model estimate from real GW1-N data.
+const MIN_MEMO = {}, FC_MEMO = {};
+function minutesOf(p) {
+  const key = 'm|' + p.id + '|' + (p.mins || 0) + '|' + (p.status || 'a');
+  if (MIN_MEMO[key]) return MIN_MEMO[key];
+  const rows = (DATA.history || {})[p.id] || [];
+  const ps = startProb(p);
+  let starts = 0, stMins = 0, allMins = 0, apps = 0;
+  rows.forEach(r => { const m = r[4] || 0; allMins += m; if (m > 0) apps++; if (m >= 60) { starts++; stMins += m; } });
+  // position prior for "real minutes per start" (whole-pool, memoised)
+  if (!MIN_MEMO._pri) {
+    const st = {};
+    (DATA.players || []).forEach(pl => {
+      for (const r of (DATA.history || {})[pl.id] || []) { const m = r[4] || 0; if (m >= 60) { const o = st[pl.pos] = st[pl.pos] || { n: 0, s: 0 }; o.n++; o.s += m; } }
+    });
+    const avg = {}; Object.keys(st).forEach(k => { avg[k] = st[k].n ? st[k].s / st[k].n : 80; });
+    MIN_MEMO._pri = avg;
+  }
+  const playMin = starts ? stMins / starts : (MIN_MEMO._pri[p.pos] || 80);     // real mins per start (prior when new)
+  const cameoAvg = apps > starts ? (allMins - stMins) / (apps - starts) : 22;  // real mins per cameo (prior 22)
+  const expMin = Math.max(0, Math.min(96, Math.round((ps * playMin + (1 - ps) * cameoAvg) * 10) / 10));
+  const p60 = apps ? Math.round(Math.min(ps, ps * (starts / apps)) * 100) / 100 : 0; // P(≥60) ≤ P(start) & real start share
+  const o = { pStart: Math.round(ps * 100) / 100, p60, expMin, n: rows.length, avgAll: rows.length ? Math.round(100 * allMins / rows.length) / 100 : 0 };
+  MIN_MEMO[key] = o;
+  return o;
+}
+function confOf(p) {
+  const P = playerProb(p);
+  const M = minutesOf(p);
+  const doubt = (p.status === 'i' || p.status === 's');
+  const n = P.n || 0;
+  let lvl, why;
+  if (doubt) { lvl = 'LOW'; why = (p.status === 'i' ? 'injured' : 'suspended') + ' — not reliable this GW'; }
+  else if (n === 0) { lvl = 'LOW'; why = 'no GW1-N data yet (new/returning signing)'; }
+  else if (n === 1) { lvl = 'LOW'; why = 'only 1 GW of own data'; }
+  else if (n === 2) { lvl = 'MED'; why = '2 GWs of own data'; }
+  else { lvl = (M.pStart >= 0.75) ? 'HIGH' : 'MED'; why = (M.pStart >= 0.75) ? '3+ GWs + secure starts' : '3+ GWs but rotation risk'; }
+  return { lvl, why, n };
+}
+// canonical next-GW forecast for a catalog player — one object, one spine
+function forecastOf(p) {
+  if (!p) return null;
+  if (FC_MEMO[p.id]) return FC_MEMO[p.id];
+  const P = playerProb(p), M = minutesOf(p), C = confOf(p), D = distOf(p);
+  const o = {
+    id: p.id, name: p.name, pos: p.pos, team: p.team,
+    gw: ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + 1,   // the GW this forecast is FOR
+    xp: Math.round(projP(p, 0) * 10) / 10,                       // model expected points (single voice)
+    ep: p.ep_next ?? 0,                                          // official FPL reference (labelled, not the model)
+    p6: P.p6, p10: P.p10, sd: P.sd, n: P.n,
+    dist: D.prob, distMean: D.mean,
+    minutes: M,
+    conf: C,
+  };
+  FC_MEMO[p.id] = o;
+  return o;
+}
+// model expected points for an element id (null when the player isn't in the catalog)
+function modelXpById(id) {
+  const p = (DATA.players || []).find(x => x.id === id);
+  return p ? forecastOf(p).xp : null;
+}
+function fcOfId(id) {
+  const p = (DATA.players || []).find(x => x.id === id);
+  return p ? forecastOf(p) : null;
+}
+// one-line HTML: confidence + expected minutes, for any surface that shows an xP
+function fcMetaLine(f) {
+  if (!f) return '';
+  const m = f.minutes, c = f.conf;
+  const cc = c.lvl === 'HIGH' ? 'var(--green)' : c.lvl === 'MED' ? 'var(--amber)' : 'var(--red)';
+  return '<span class="mrow">🎯 model xP <b>' + f.xp.toFixed(1) + '</b> · minutes ~' + Math.round(m.pStart * 100) + '% start / ~' + m.expMin + "′ exp · confidence <b style=\"color:" + cc + '">' + c.lvl + '</b> <span class="muted">(' + esc(c.why) + ')</span></span>';
+}
 // ---- Probability profile (audit P0 #3: expected points ≠ probability) ----
 // xPts (projP) is the point ESTIMATE. These chips answer a different question:
 // "how likely is a return/haul this GW?" They are calibrated from REAL results —
@@ -1662,7 +1754,7 @@ function distBar(p, over) {
   const cols = ['#5a6a85', '#7a8bb0', '#e6a23c', '#4cd964', '#2dd4a7'];
   const lab = ['≤0', '1–2', '3–5', '6–9', '10+'];
   const segs = D.prob.map((x, i) => `<div style="flex:${Math.max(1, Math.round(x * 1000))};background:${cols[i]};min-width:${x > 0.03 ? 12 : 2}px;height:10px;border-radius:2px" title="${lab[i]}: ${Math.round(x * 100)}%"></div>`).join('');
-  return `<div style="margin-top:5px"><div class="muted" style="font-size:11px">outcome spread · mid ≈ ${D.mean.toFixed(1)} xPts model ${(p && typeof projP === 'function' ? projP(p, 0) : 0).toFixed(1)}</div><div style="display:flex;gap:2px;width:100%">${segs}</div></div>`;
+  return `<div style="margin-top:5px"><div class="muted" style="font-size:11px">outcome spread (chance view — sums to 100%) · xP shown separately on the card</div><div style="display:flex;gap:2px;width:100%">${segs}</div></div>`;
 }
 
 function startersAt(squad, i) {
