@@ -619,7 +619,8 @@ function scout(p) {
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">🎲 P(≥6) ${PP.p6}% · P(≥10) ${PP.p10}% <span class="muted">(chance ≠ prediction — real GW1-3 + pos base rate)</span> · swing ±${PP.sd.toFixed(1)}/GW</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span><br>
-  <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>`;
+  <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>
+  <span class="mrow">${distBar(p)}</span>`;
 }
 function normName(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -714,6 +715,7 @@ function pairDecision(A, B, q0) {
       + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/270</b></div>'
       + selLine(p)
       + ppRows(p)
+      + distBar(p)
       + teamDefLine(p)
       + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
       + '</div>';
@@ -1428,6 +1430,58 @@ function ppRows(p) {
     + '<div style="display:flex;justify-content:space-between"><span class="muted" title="chance of a 10+ point haul this GW">P(≥10) <i>chance</i></span><b style="color:' + c10 + '">' + P.p10 + '%</b></div>'
     + '<div style="display:flex;justify-content:space-between"><span class="muted" title="typical per-GW swing from his real GW1-3 points">swing ±/GW</span><b>' + P.sd.toFixed(1) + '</b></div>';
 }
+// ---- Probabilistic per-GW projection (audit roadmap #7) ----
+// A full next-GW OUTCOME SPREAD for a player over 5 bands:
+//   ≤0 · 1–2 · 3–5 · 6–9 · 10+   (probabilities sum to 1)
+// Construction keeps it exactly consistent with the P(≥6)/P(≥10) rows already
+// shown: the ≥10 and 6–9 bands are pinned to those probabilities, and the
+// remaining mass is split across the low bands using the player's REAL GW1-N
+// scores blended with the position base (shrinkage) and gated by P(starts).
+// Every number is a labelled model estimate from real results.
+function distShape(p) {
+  const band = (pts, mins) => { if ((mins || 0) < 60) return -1; return pts <= 0 ? 0 : pts <= 2 ? 1 : pts <= 5 ? 2 : pts <= 9 ? 3 : 4; };
+  if (!PP_MEMO._posShape) {
+    const st = { GK: [0, 0, 0, 0, 0], DEF: [0, 0, 0, 0, 0], MID: [0, 0, 0, 0, 0], FWD: [0, 0, 0, 0, 0] };
+    (DATA.players || []).forEach(pl => {
+      for (const r of (DATA.history || {})[pl.id] || []) { const b = band(r[1], r[4]); if (b >= 0 && st[pl.pos]) st[pl.pos][b]++; }
+    });
+    PP_MEMO._posShape = st;
+  }
+  const own = [0, 0, 0, 0, 0]; let n = 0;
+  for (const r of (DATA.history || {})[p.id] || []) { const b = band(r[1], r[4]); if (b >= 0) { own[b]++; n++; } }
+  const pos = PP_MEMO._posShape[p.pos] || [0, 0, 0, 0, 0];
+  const posN = pos.reduce((a, b) => a + b, 0) || 1;
+  const w = n / (n + 1.5);
+  const blend = [0, 0, 0, 0, 0];
+  for (let i = 0; i < 5; i++) blend[i] = w * own[i] / (n || 1) + (1 - w) * pos[i] / posN;
+  return { shape: blend, posN, ownN: n };
+}
+function distOf(p, over) {
+  const P = playerProb(p, over);                       // p6 / p10 / sd — single source of truth
+  let p6 = P.p6 / 100, p10 = P.p10 / 100;
+  if (p10 > p6) p10 = p6;                              // defensive (shouldn't happen)
+  const { shape } = distShape(p);
+  const lowW = shape[0] + shape[1] + shape[2] || 1;    // real low-band split
+  const prob = [
+    shape[0] / lowW * (1 - p6),
+    shape[1] / lowW * (1 - p6),
+    shape[2] / lowW * (1 - p6),
+    p6 - p10,                                          // 6–9  == P(≥6) − P(≥10)
+    p10,                                               // 10+  == P(≥10)
+  ];
+  const mids = [0, 1.5, 4, 7.5, 12];
+  const mean = Math.round(prob.reduce((a, x, i) => a + x * mids[i], 0) * 100) / 100;
+  return { prob, mean, p6: P.p6, p10: P.p10 };
+}
+// one compact stacked "outcome spread" bar (5 coloured segments + tooltip %)
+function distBar(p, over) {
+  const D = distOf(p, over);
+  const cols = ['#5a6a85', '#7a8bb0', '#e6a23c', '#4cd964', '#2dd4a7'];
+  const lab = ['≤0', '1–2', '3–5', '6–9', '10+'];
+  const segs = D.prob.map((x, i) => `<div style="flex:${Math.max(1, Math.round(x * 1000))};background:${cols[i]};min-width:${x > 0.03 ? 12 : 2}px;height:10px;border-radius:2px" title="${lab[i]}: ${Math.round(x * 100)}%"></div>`).join('');
+  return `<div style="margin-top:5px"><div class="muted" style="font-size:11px">outcome spread · mid ≈ ${D.mean.toFixed(1)} xPts model ${(p && typeof projP === 'function' ? projP(p, 0) : 0).toFixed(1)}</div><div style="display:flex;gap:2px;width:100%">${segs}</div></div>`;
+}
+
 function startersAt(squad, i) {
   return bestXI(squad, p => projP(p, i)) || squad.slice(0, 11);
 }
