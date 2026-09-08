@@ -1616,7 +1616,7 @@ function renderCompare() {
 const ET = (() => {
   let ok = false, D = {};
   const FOLD = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const cache = { agg: null, rows: null, playerById: null };
+  const cache = { agg: null, rows: null, playerById: null, skill: null };
 
   function pById() {
     if (!cache.playerById) {
@@ -1729,6 +1729,57 @@ const ET = (() => {
     if (r.mins >= 260) parts.push(`played ${r.mins}/270 mins`); else if (r.mins <= 120) parts.push(`only ${r.mins} mins so far`);
     return parts.join(' · ') || '—';
   }
+  // ---------- quality weighting (audit roadmap #16) ----------
+  // Skill weight from REAL past-season overall ranks only (never the current
+  // hot streak): top-1k finish ×2.0 · top-10k ×1.5 · top-100k ×1.2 · else ×0.6.
+  // Purpose: an experienced manager's transfer/captain should count more than a
+  // first-season lucky leader's. Labelled model — never a claim about intent.
+  function skillRow(e) {
+    const past = e.past || [];
+    const ranks = past.map(s => +s.rank).filter(r => isFinite(r) && r >= 1 && r < 5e7);
+    const nTop1k = ranks.filter(r => r <= 1000).length;
+    const nTop10k = ranks.filter(r => r <= 10000).length;
+    const nTop100k = ranks.filter(r => r <= 100000).length;
+    const best = ranks.length ? Math.min.apply(null, ranks) : (e.best_rank || null);
+    const w = nTop1k ? 2 : nTop10k ? 1.5 : nTop100k ? 1.2 : 0.6;
+    return { entry: e.entry, name: e.player_name || e.entry_name || String(e.entry),
+      pastN: ranks.length, nTop1k, nTop10k, nTop100k, best, w,
+      tier: nTop1k ? 'proven top-1k' : nTop10k ? 'proven top-10k' : nTop100k ? 'top-100k' : 'newcomer' };
+  }
+  function skill() {
+    if (!cache.skill) cache.skill = (D.elite.elites || []).map(skillRow);
+    return cache.skill;
+  }
+  function skillW() { const m = {}; skill().forEach(s => { m[s.entry] = s.w; }); return m; }
+  // skill-weighted captaincy for a GW (every manager's real armband is in elites[].captains)
+  function capSkill(g) {
+    const sw = skillW();
+    const acc = {}; let wsum = 0, rawN = 0;
+    (D.elite.elites || []).forEach(e => {
+      const c = (e.captains || {})[String(g)]; if (!c) return;
+      const w = sw[e.entry] || 0.6; wsum += w; rawN++;
+      const o = acc[c] = acc[c] || { w: 0, raw: 0 }; o.w += w; o.raw++;
+    });
+    return Object.keys(acc).map(id => ({ id, n: acc[id].raw, share: rawN ? Math.round(100 * acc[id].raw / rawN) : 0,
+      wN: Math.round(acc[id].w * 10) / 10, wShare: wsum ? Math.round(100 * acc[id].w / wsum) : 0 }))
+      .sort((a, b) => b.wN - a.wN);
+  }
+  // skill-weighted transfers for a GW (real transfer records in elites[].transfers, event = gw)
+  function churnSkill(g) {
+    const sw = skillW();
+    const b = {}, s = {}; let rawT = 0;
+    const ev = Number(g);
+    (D.elite.elites || []).forEach(e => {
+      (e.transfers || []).filter(t => Number(t.event) === ev).forEach(t => {
+        const w = sw[e.entry] || 0.6; rawT++;
+        if (t.element_in) { const o = b[t.element_in] = b[t.element_in] || { w: 0, raw: 0 }; o.w += w; o.raw++; }
+        if (t.element_out) { const o = s[t.element_out] = s[t.element_out] || { w: 0, raw: 0 }; o.w += w; o.raw++; }
+      });
+    });
+    const mk = o => Object.keys(o).map(id => ({ id, n: o[id].raw, wN: Math.round(o[id].w * 10) / 10 }))
+      .sort((x, y) => y.wN - x.wN);
+    return { bought: mk(b), sold: mk(s), rawT };
+  }
   // ---------- public ----------
   const api = {
     init(data) {
@@ -1747,6 +1798,10 @@ const ET = (() => {
     cls: (r) => cls(r),
     captainGW: (g) => { api._ensure(); return captainGW(g); },
     templateGW: (g) => { api._ensure(); return templateGW(g); },
+    skill: () => { api._ensure(); return skill(); },
+    skillW: () => { api._ensure(); return skillW(); },
+    capSkill: (g) => { api._ensure(); return capSkill(g); },
+    churnSkill: (g) => { api._ensure(); return churnSkill(g); },
     dataNote: (r) => dataNote(r),
     cohortMeta() {
       api._ensure();
@@ -1825,6 +1880,31 @@ function elitePulse() {
     ${card('💎', 'Elite differential', diffs ? pl(diffs) + `<br><span class="muted">low elite ownership but they're adding him</span>` : '—')}
     ${card('⚠️', 'Public favourite, elites avoid', avoided ? pl(avoided) + `<br><span class="muted">${avoided.own_pub}% public · only ${avoided.share}% elite own</span>` : '—', 'var(--amber)')}
     ${card('🧭', 'Minority captain', caps[1] ? pl({ name: ET.P(caps[1].id).name, team: ET.P(caps[1].id).team, pos: ET.P(caps[1].id).pos, share: caps[1].share }) + `<br><span class="muted">${caps[1].n} elite teams chose him</span>` : '—')}
+    ${eliteSkillLens()}
+  </div>`;
+}
+
+// ---------- ⭐ proven-elite lens (skill-weighted, real past-season ranks) ----------
+function eliteSkillLens() {
+  const sk = ET.skill(); const g = ET.gws();
+  if (!sk.length) return '';
+  const nProven = sk.filter(s => s.nTop10k).length;
+  const n1k = sk.filter(s => s.nTop1k).length;
+  const wsum = Math.round(sk.reduce((a, s) => a + s.w, 0) * 10) / 10;
+  const pName = id => { const p = ET.P(id); return p ? p.name : '#' + id; };
+  const ch = ET.churnSkill(String(g.last));
+  const wb = ch.bought[0], ws = ch.sold[0];
+  const cap = ET.capSkill(String(g.last))[0];
+  const block = (ic, t, body) => `<div style="background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.25);border-radius:10px;padding:8px 10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b>${t}</b><span>${ic}</span></div><div style="margin-top:4px">${body}</div></div>`;
+  return `<div class="card x-card" style="grid-column:1/-1">
+    <h2 style="margin-bottom:2px">⭐ Proven-elite lens <span class="muted">— skill-weighted, from real past-season ranks</span></h2>
+    <p class="muted" style="margin:0 0 8px">${sk.length} tracked leaders, but only <b>${nProven}</b> hold a real past top-10k finish (${n1k} top-1k). Weights: top-1k ×2 · top-10k ×1.5 · top-100k ×1.2 · newcomer ×0.6 → effective cohort <b>${wsum}</b>. The proven few steer these numbers more than a lucky first-season leader.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">
+      ${wb ? block('🔥', 'Weighted most bought · GW' + g.last, `<b>${eh(pName(wb.id))}</b> <span class="muted">raw ${wb.n} → w ${wb.wN}</span>`) : ''}
+      ${ws ? block('🔻', 'Weighted most sold · GW' + g.last, `<b>${eh(pName(ws.id))}</b> <span class="muted">raw ${ws.n} → w ${ws.wN}</span>`) : ''}
+      ${cap ? block('👑', 'Weighted captain · GW' + g.last, `<b>${eh(pName(cap.id))}</b> <span class="muted">${cap.share}% raw → ${cap.wShare}% weighted</span>`) : ''}
+    </div>
+    <p class="muted" style="margin:8px 0 0">Ask the Copilot "what do the proven elites do?" for the full weighted view. Weights are a labelled model from real history — a signal to weigh, not a commandment.</p>
   </div>`;
 }
 
@@ -1991,6 +2071,23 @@ function eliteAsk(q0) {
   const sell = r.slice().filter(x => x.net < 0).sort((a, b) => a.net - b.net);
   const insuf = () => `Elite data only covers finished GWs (GW1–${g.last}). GW${g.open} behaviour will appear after ${g.next}.`;
   const ln = x => `<span class="mrow">• <b>${eh(x.name)}</b> <span class="muted">${x.team} · ${x.pos}</span> — ${x.net > 0 ? '+' + x.bought : '−' + x.sold} (net ${x.net > 0 ? '+' + x.net : x.net}) · elite own ${x.share}%${x.cap ? ' · captained ' + x.cap + '/' + g.cohort : ''}</span>`;
+  
+  // ⭐ proven-elite (skill-weighted) view — real past-season ranks
+  if (/(weighted|skill.?weight|proven|experienced|seasoned|track.?record|top-?1k|top-?10k)/.test(q)) {
+    const sk = ET.skill();
+    const p10k = sk.filter(x => x.nTop10k).length, p1k = sk.filter(x => x.nTop1k).length;
+    const wsum = Math.round(sk.reduce((a, x) => a + x.w, 0) * 10) / 10;
+    const ch = ET.churnSkill(String(g.last));
+    const wb = ch.bought[0], ws = ch.sold[0];
+    const cap = ET.capSkill(String(g.last))[0];
+    const pN = id => { const p = ET.P(id); return p ? p.name : '#' + id; };
+    let out = `⭐ Skill-weighted elite view · GW${g.last}: ${p10k} of ${sk.length} have a real past top-10k finish (${p1k} top-1k) → effective cohort <b>${wsum}</b> in weighted terms.<br>`;
+    if (cap) out += `<span class="mrow">👑 Weighted captain: <b>${eh(pN(cap.id))}</b> ${cap.share}% raw → <b>${cap.wShare}%</b> weighted</span>`;
+    if (wb) out += `<br><span class="mrow">🔥 Weighted most bought: <b>${eh(pN(wb.id))}</b> (${wb.n} raw → w ${wb.wN})</span>`;
+    if (ws) out += `<br><span class="mrow">🔻 Weighted most sold: <b>${eh(pN(ws.id))}</b> (${ws.n} raw → w ${ws.wN})</span>`;
+    out += '<br><span class="muted">Weights: top-1k ×2 · top-10k ×1.5 · top-100k ×1.2 · newcomer ×0.6 (from real past-season ranks). Labelled model — a signal to weigh, not a rule.</span>';
+    return out;
+  }
   if (/buy|transfer.*in|bring.*in/.test(q) && !/sell/.test(q)) return buy.length ? `What elite leaders bought for GW${g.last} (real):<br>${buy.slice(0, 6).map(ln).join('')}` : insuf();
   if (/sell|drop|out|moving/.test(q)) return sell.length ? `What elite leaders sold for GW${g.last} (real):<br>${sell.slice(0, 6).map(ln).join('')}` : insuf();
   if (/captain|armband/.test(q)) {
