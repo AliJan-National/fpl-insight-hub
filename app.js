@@ -900,15 +900,96 @@ const mlGw = () => DATA.fplmeta.current_gw || 3; // latest published picks (next
 const mlCacheGet = k => { try { return JSON.parse(localStorage.getItem('ml_' + k)); } catch (e) { return null; } };
 const mlCacheSet = (k, v) => { try { localStorage.setItem('ml_' + k, JSON.stringify(v)); } catch (e) { } };
 
+// ---- Win-probability simulator (real evidence · pure & testable) ----
+// Every manager's WEEKLY volatility is estimated from their REAL per-GW points
+// this season (official entry history) and shrunk toward a league-wide prior,
+// because a 2-3 GW sample is noisy. All outputs are labelled model estimates.
+const ML_POP_SD = 12.5;   // prior: typical weekly score spread across FPL managers
+const ML_SHRINK_K = 4;    // shrinkage strength — fewer real GWs → closer to prior
+// Strategy profiles applied to YOU over the remaining season (labelled estimates).
+const ML_PLANS = [
+  { key: 'Safe',       muAdj: -0.40, sdMul: 0.90,  why: 'template-heavy: protects what you have (slightly lower raw output, lower weekly swing)' },
+  { key: 'Balanced',   muAdj: +0.60, sdMul: 1.00,  why: 'solid upgrades with modest differentiation' },
+  { key: 'Aggressive', muAdj: +1.60, sdMul: 1.25,  why: 'chases differential upside: higher expected points AND higher swing' },
+];
+// Real weekly volatility from an entry's actual per-GW scores (official history).
+function mlVol(gwPoints) {
+  const xs = (gwPoints || []).filter(x => x != null && isFinite(x)).map(Number);
+  const n = xs.length;
+  if (n < 1) return { n: 0, avg: null, rawSd: null, sd: ML_POP_SD };
+  const avg = xs.reduce((a, b) => a + b, 0) / n;
+  const v = xs.reduce((s, x) => s + (x - avg) * (x - avg), 0);
+  const rawSd = n > 1 ? Math.sqrt(v / (n - 1)) : 0;
+  const w = n / (n + ML_SHRINK_K); // weight on the observed sd
+  const sd = Math.max(6, Math.min(22, w * rawSd + (1 - w) * ML_POP_SD));
+  return { n, avg, rawSd, sd };
+}
+function mulberry32(seed) { // deterministic PRNG → reproducible sims
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function mlRandn(rng) { // standard normal via Box–Muller
+  let u = 0, v = 0;
+  while (!u) u = rng(); while (!v) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+// Season-long Monte-Carlo over the field, one manager at a time.
+//  you:   { total (banked pts), mu (expected weekly pts), sd (real weekly vol) }
+//  field: [{ total, mu, sd }] relevant rivals
+//  plans: strategy deltas applied to YOU (default ML_PLANS)
+// Each plan returns winPct + a real final-points band (p10/med/p90).
+//  (gws iid draws collapse to sd*sqrt(gws)*Z — mathematically identical.)
+function mlSimulate(you, field, plans, opts) {
+  const N = (opts && opts.sims) || 2400;
+  const gws = Math.max(1, (opts && opts.gws) || 1);
+  const rng = (opts && opts.rng) || mulberry32(20260908);
+  const root = Math.sqrt(gws);
+  const out = {};
+  for (const pl of plans) {
+    const muY = you.mu + (pl.muAdj || 0);
+    const sdY = Math.max(4, you.sd * (pl.sdMul || 1));
+    const fin = [];
+    let win = 0;
+    for (let i = 0; i < N; i++) {
+      const fY = you.total + muY * gws + sdY * root * mlRandn(rng);
+      fin.push(fY);
+      let best = fY;
+      for (const rv of field) {
+        const f = rv.total + rv.mu * gws + rv.sd * root * mlRandn(rng);
+        if (f > best) best = f;
+      }
+      if (best === fY) win++; // ties count as your win (you were first past the post)
+    }
+    fin.sort((a, b) => a - b);
+    const q = p => fin[Math.min(N - 1, Math.max(0, Math.round(p * (N - 1))))];
+    out[pl.key] = {
+      winPct: Math.round(100 * win / N),
+      p10: Math.round(q(0.10) * 10) / 10,
+      med: Math.round(q(0.50) * 10) / 10,
+      p90: Math.round(q(0.90) * 10) / 10,
+    };
+  }
+  return out;
+}
+
 async function mlFetchEntry(id) {
-  const ck = id + '_' + mlGw();
+  const ck = id + '_' + mlGw() + '_v2'; // v2: also caches real per-GW history
   const c = mlCacheGet(ck);
   if (c) return c;
   const [picks, hist] = await Promise.all([
     fplApi(`entry/${id}/event/${mlGw()}/picks/`),
     fplApi(`entry/${id}/history/`),
   ]);
-  const out = { picks, chips: (hist.chips || []).map(x => x.name) };
+  const out = {
+    picks,
+    chips: (hist.chips || []).map(x => x.name),
+    gwPts: (hist.current || []).map(e => e.points), // REAL weekly scores this season
+  };
   mlCacheSet(ck, out);
   return out;
 }
@@ -975,7 +1056,7 @@ async function mlBuild(youId) {
   for (const r of rivals) {
     try {
       const d = await mlFetchEntry(r.id);
-      R.push({ row: r, s: mlSquadStats(d.picks, EL, TM), chips: d.chips });
+      R.push({ row: r, s: mlSquadStats(d.picks, EL, TM), chips: d.chips, gwPts: d.gwPts });
     } catch (e) { /* skip unreachable rival */ }
   }
 
@@ -1044,28 +1125,22 @@ async function mlBuild(youId) {
     : `NO — expected gain +${gain.toFixed(1)}/GW doesn't clear the -4 in ${mode} mode${tgt.owned / n >= 0.5 ? ', and rivals already own him (no edge)' : ''}. Save the transfer.`) : 'No affordable upgrade found.';
   // chip battle vs primary rival (spec §12)
   const prim = R[0];
-  // win probability (Monte Carlo, labelled estimate — spec §16)
-  function randn() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
-  function winProb(muAdj, sd) {
-    const N = 1200; let w = 0;
-    for (let i = 0; i < N; i++) {
-      const uFin = you.total + (youS.mu + muAdj) * gwsLeft + randn() * sd * Math.sqrt(gwsLeft);
-      let best = uFin;
-      for (const rv of R) {
-        const f = rv.row.total + rv.s.mu * gwsLeft + randn() * 10 * Math.sqrt(gwsLeft);
-        if (f > best) best = f;
-      }
-      if (best === uFin) w++;
-    }
-    return Math.round(100 * w / N);
-  }
-  const probs = { Safe: winProb(-0.4, 8.5), Balanced: winProb(0.6, 10), Aggressive: winProb(1.6, 12.5) };
+  // ---- Win probability: REAL weekly volatility per manager, season-long sim ----
+  const youVol = mlVol(youData.gwPts);                       // your real weekly σ (official history)
+  const rvVols = R.map(rv => ({ rv, vol: mlVol(rv.gwPts) }));// each rival's real weekly σ
+  const sim = mlSimulate(
+    { total: you.total, mu: youS.mu, sd: youVol.sd },
+    rvVols.map(v => ({ total: v.rv.row.total, mu: v.rv.s.mu, sd: v.vol.sd })),
+    ML_PLANS, { sims: 2400, gws: gwsLeft }
+  );
+  const probs = { Safe: sim.Safe.winPct, Balanced: sim.Balanced.winPct, Aggressive: sim.Aggressive.winPct };
   const bestProb = Object.entries(probs).sort((a, b) => b[1] - a[1])[0];
+  const mainRiv = rvVols[0] || null;
 
   Object.assign(ML, {
     ready: true, you, youS, R, leader, gap, catchRate, gwsLeft, mode, modeTxt, n,
     threats, diffs, capCands, capPick, tgt, gain, hitText, probs, prim,
-    youChips, sorted,
+    youChips, sorted, sim, youVol, rvVols,
     ownCount: p => R.filter(rv => rv.s.idsSet.has(p.id)).length,
     capLens: s => {
       const cc = capCands.find(c => c.x.id === ((s.r && s.r.element) || s.id));
@@ -1085,7 +1160,9 @@ async function mlBuild(youId) {
     </div>
     <p style="margin:10px 0 4px"><span class="mode-badge mode-${mode === 'ALLIN' ? 'ALLIN' : mode}">${mode === 'ALLIN' ? 'ALL-IN' : mode}</span>
     <span class="muted" style="margin-left:10px">${modeTxt}</span></p>
-    <p class="muted">Win-probability estimate (Monte-Carlo, indicative): Safe <b>${probs.Safe}%</b> · Balanced <b>${probs.Balanced}%</b> · Aggressive <b>${probs.Aggressive}%</b> → engine recommends <b>${bestProb[0]}</b>.</p>
+    <p class="muted">Win-probability simulator (per-manager volatility from real GW history · model estimate):</p>
+    <p style="margin:4px 0">${ML_PLANS.map(pl => `<span class="capclass cap-${pl.key === 'Safe' ? 'SAFE' : pl.key === 'Balanced' ? 'BALANCED' : 'DIFFERENTIAL'}">${pl.key}</span> <b>${sim[pl.key].winPct}%</b> win league <span class="muted">· final pts ${sim[pl.key].p10}–${sim[pl.key].p90} (mid ${sim[pl.key].med})</span>`).join('<br>')}</p>
+    <p class="muted">Engine recommends <b>${bestProb[0]}</b> (${ML_PLANS.find(p => p.key === bestProb[0]).why}). Volatility fed from each team's real weekly scores: you σ≈${youVol.sd.toFixed(1)}${youVol.n ? ` from ${youVol.n} GW${youVol.n > 1 ? 's' : ''}` : ' (no history yet)'}${mainRiv && mainRiv.vol.n ? ` · ${esc(mainRiv.rv.row.entry_name)} σ≈${mainRiv.vol.sd.toFixed(1)} from ${mainRiv.vol.n} GWs` : ''}. Chips & fixture swings not modelled — directional, never a promise.</p>
   </div>`;
 
   const weak = rv => {
@@ -1871,8 +1948,11 @@ function eliteAsk(q0) {
     return bits.length ? `Real signals to weigh before ${g.next}:<br>${bits.map(b => `<span class="mrow">• ${b}</span>`).join('')}<br><span class="muted">Elite GW${g.open} data lands after the deadline — until then these GW${g.last} facts are the freshest real evidence.</span>` : insuf();
   }
   if (/proven|who are|rank|history/.test(q)) {
-    const es = ET.data().elite || [];
-    return `Tracked cohort: world's current top ${es.length} (overall). ${es.filter(e => e.proven_top10k).length} have a verified past top-10k finish (e.g. ${es.filter(e => e.proven_top10k).slice(0, 3).map(e => e.player_name + ' · best ' + (e.best_rank || '?')).join('; ') || '—'}). Every team is public — open any of them on the official site.`;
+    // ET.data() is the full dataset; the tracked managers live at .elite.elites.
+    const dd = ET.data() || {};
+    const list = (dd.elite && !Array.isArray(dd.elite) ? dd.elite.elites : null) || dd.elites || (Array.isArray(dd.elite) ? dd.elite : []) || [];
+    const proven = list.filter(e => e.proven_top10k);
+    return `Tracked cohort: world's current top ${list.length} (overall). ${proven.length} have a verified past top-10k finish (e.g. ${proven.slice(0, 3).map(e => e.player_name + ' · best ' + (e.best_rank || '?')).join('; ') || '—'}). Every team is public — open any of them on the official site.`;
   }
   if (/top 5|signals/.test(q)) {
     const o = [];
