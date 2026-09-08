@@ -617,15 +617,41 @@ function scout(p) {
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
 }
+function normName(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// v10: scored name matching — exact > prefix > surname+first-initial > substring > word > surname.
+// Ties broken by season points (the famous one wins) + team hint ("palmer che").
 function findPlayer(q) {
-  const Q = q.toLowerCase();
-  let best = null;
+  const Q = normName(q);
+  if (!Q) return null;
+  const qw = Q.split(' ');
+  const qlast = qw[qw.length - 1];
+  const cands = [];
   for (const p of DATA.players) {
-    const words = p.name.toLowerCase().split(/[\s.]+/);
-    const hit = Q.includes(p.name.toLowerCase()) || words.some(w => w.length >= 4 && Q.includes(w));
-    if (hit && (!best || p.name.length > best.name.length)) best = p;
+    const N = normName(p.name);
+    if (!N) continue;
+    const nw = N.split(' ');
+    let score = -1;
+    if (N === Q) score = 100;
+    else if ((N.startsWith(Q) || Q.startsWith(N)) && Math.min(N.length, Q.length) >= 4) score = 80;
+    else if (qw.length > 1 && nw.length > 1 && qlast === nw[nw.length - 1] && qw[0][0] === nw[0][0] && qlast.length >= 3) score = 70;
+    else if ((Q.includes(N) && N.length >= 4) || (N.includes(Q) && Q.length >= 4)) score = 60;
+    else if (qw.length === 1 && nw.includes(Q) && Q.length >= 4) score = 50;
+    else if (qlast.length >= 4 && qlast === nw[nw.length - 1]) score = 40;
+    if (score < 0) continue;
+    const hint = qw.includes((p.team || '').toLowerCase());
+    if (hint) score += 10;
+    cands.push({ p, score, hint });
   }
-  return best;
+  if (!cands.length) return null;
+  cands.sort((a, b) => (b.score - a.score) || ((b.p.pts || 0) - (a.p.pts || 0)));
+  const [first, second] = cands;
+  if (first.hint) return first.p; // explicit team word in query is always respected
+  // fame override: a bare surname exactly matching an obscure player must not beat a star containing it
+  if (second && second.score >= 50 && (second.p.pts || 0) >= 15 && (second.p.pts || 0) >= 3 * Math.max(1, (first.p.pts || 0))) return second.p;
+  return first.p;
 }
 function askAI(q) {
   const Q = q.toLowerCase();
