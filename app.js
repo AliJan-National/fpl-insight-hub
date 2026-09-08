@@ -812,11 +812,32 @@ function askAI(q) {
   if (/captain|armband/.test(Q)) {
     if (ctx) {
       const ranked = ctx.squad.map(s => ({ s, c: s.cap })).sort((a, b) => b.c - a.c).slice(0, 3);
+      let lev = '';
+      if (window.ML && ML.ready && ML.capCands && ML.capCands.length) {
+        const field = ML.capCands.slice().sort((a, b) => (b.rivCap || 0) - (a.rivCap || 0) || (b.x.ep || 0) - (a.x.ep || 0))[0];
+        const top = ranked[0];
+        if (field && top && top.s && top.s.e) {
+          const topId = top.s.r && top.s.r.element;
+          const L = capLev({ name: top.s.e.n, ep: top.s.ep, p6: (ppOfId(topId) || {}).p6, p10: (ppOfId(topId) || {}).p10 },
+                           { name: field.x.e.n, ep: field.x.ep, p6: (ppOfId(field.x.id) || {}).p6, p10: (ppOfId(field.x.id) || {}).p10 });
+          const col = capLevColor(L.cls);
+          const same = top.s.e.n === field.x.e.n;
+          lev = `<br><span class="mrow">⚔️ Captain leverage vs your mini league: ${same ? `rivals also mostly captain <b>${esc(field.x.e.n)}</b> (${field.rivCap}/${ML.n}) — zero leverage, which is exactly the safe play` : `the field (${field.rivCap}/${ML.n} rivals) is on <b>${esc(field.x.e.n)}</b> (ep ${field.x.ep.toFixed(1)}); your top option <b>${esc(top.s.e.n)}</b> (ep ${top.s.ep.toFixed(1)}) is <b style="color:${col}">${(L.eEp > 0 ? '+' : '')}${L.eEp.toFixed(1)} ep</b> vs the field · ${L.txt}`}. Leverage = model estimate, single-GW.</span>`;
+        }
+      }
       return `For <b>GW${ctx.picksGw + 1}</b>, your captain options ranked by fixture-adjusted projection:<br>` +
         ranked.map((x, i) => `<span class="mrow">${i + 1}. <b>${esc(x.s.e.n)}</b> — ${((x.s.fxs[0] || {}).opp) || '—'}(${(x.s.fxs[0] || {}).ha || '?'}), adj FDR ${(x.s.fxs[0] || {}).afdr ?? (x.s.fxs[0] || {}).fdr ?? 3}, ep ${x.s.ep.toFixed(1)} → score ${x.c.toFixed(1)}</span>`).join('') +
-        `<br><span class="mrow">Verdict: <b>${esc(ranked[0].s.e.n)}</b> is the standout${ranked[1] ? '; ' + esc(ranked[1].s.e.n) + ' the safe vice.' : '.'}</span>`;
+        `<br><span class="mrow">Verdict: <b>${esc(ranked[0].s.e.n)}</b> is the standout${ranked[1] ? '; ' + esc(ranked[1].s.e.n) + ' the safe vice.' : '.'}</span>` + lev;
     }
-    return `Global captain picks this GW: <b>${DATA.captains.slice(0, 3).map(c => c.name).join(', ')}</b> — see the Captain & Prices tab for reasons.`;
+    const g0 = DATA.captains[0];
+    const pickTxt = DATA.captains.slice(0, 3).map(c => {
+      if (!g0 || c === g0) return `<b>${esc(c.name)}</b> (ep ${c.ep})`;
+      const L = capLev({ name: c.name, ep: c.ep }, { name: g0.name, ep: g0.ep });
+      const col = capLevColor(L.cls);
+      return `<b>${esc(c.name)}</b> (ep ${c.ep}) <b style="color:${col}">${(L.eEp > 0 ? '+' : '')}${L.eEp.toFixed(1)}</b> vs #1`;
+    }).join(', ');
+    return `Global captain picks this GW (edge vs the #1 field pick, from the same model): ${pickTxt}.<br>`
+      + `<span class="mrow">💡 Captain choice is <b>leverage</b>: an expected edge over the field only matters if you own the pick and rivals don't captain it. Load your team + mini league for a personalised verdict.</span>`;
   }
   if (/wildcard/.test(Q)) {
     renderWildcard();
@@ -1222,9 +1243,19 @@ async function mlBuild(youId) {
     </div>`).join('')}
   </div></div>`;
 
+  const capField = capCands.slice().sort((a,b)=>(b.rivCap||0)-(a.rivCap||0)||(b.x.ep||0)-(a.x.ep||0))[0] || null;
+  const capFieldPP = capField ? ppOfId(capField.x.id) : null;
+  const levFor = cc => {
+    if (!capField) return '';
+    if (cc === capField || cc.x.id === capField.x.id) return ' <span class="xb" style="--c:var(--amber)">field</span>';
+    const p = ppOfId(cc.x.id);
+    return '<br>' + capLevLine({ name: cc.x.e.n, ep: cc.x.ep, p6: p && p.p6, p10: p && p.p10 },
+      { name: capField.x.e.n, ep: capField.x.ep, p6: capFieldPP && capFieldPP.p6, p10: capFieldPP && capFieldPP.p10 });
+  };
   $('#mlCap').innerHTML = `<div class="card"><h2>👑 Captaincy — ML lens</h2>
-    ${capCands.map((cc, i) => `<span class="mrow">${i + 1}. <b>${esc(cc.x.e.n)}</b> ep ${cc.x.ep.toFixed(1)} <span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">${cc.rivCap}/${n} rivals captain him</span></span><br>`).join('')}
-    <p style="margin-top:6px">Engine pick for <b>${mode}</b> mode: <b>${esc(capPick.x.e.n)}</b> — ${capPick.cls === 'SAFE' ? 'matching the field protects your position.' : capPick.cls === 'BALANCED' ? 'solid points with a slight edge over some rivals.' : 'the upside edge your gap requires; rivals won\'t match it.'}</p>
+    ${capCands.map((cc, i) => `<span class="mrow">${i + 1}. <b>${esc(cc.x.e.n)}</b> ep ${cc.x.ep.toFixed(1)} <span class="capclass cap-${cc.cls}">${cc.cls}</span> <span class="tk-opp">${cc.rivCap}/${n} rivals captain him</span>${levFor(cc)}</span><br>`).join('')}
+    <p style="margin-top:6px">⚖️ Field captain = what most of your rivals currently captain (latest picks — may change at deadline). Engine pick for <b>${mode}</b> mode: <b>${esc(capPick.x.e.n)}</b> — ${capPick.cls === 'SAFE' ? 'matching the field protects your position.' : capPick.cls === 'BALANCED' ? 'solid points with a slight edge over some rivals.' : 'the upside edge your gap requires; rivals won\'t match it.'}</p>
+    <p class="muted" style="margin-top:4px">Leverage = expected-pts edge of your captain vs the field's, plus haul-chance edge. +ve means you are expected to beat the field by that many pts this GW — model estimate, single-GW, not a promise.</p>
   </div>`;
 
   $('#mlDiff').innerHTML = `<div class="card"><h2>💎 Mini-League Differentials & ⚠️ Threats</h2>
@@ -1404,6 +1435,46 @@ const teamProjAt = (squad, i) => {
   const st = startersAt(squad, i);
   return st.reduce((s, p) => s + projP(p, i), 0) + Math.max(0, ...st.map(p => projP(p, i)));
 };
+// ---- Captain leverage (audit roadmap #10) ----
+// Armband edge vs the FIELD captain (whom most rivals / the public will pick):
+//   expected edge = E(C) - E(F)   haul edge = P(>=10|C) - P(>=10|F)
+// +ve edge means captaining C is EXPECTED to beat the field this GW. Every
+// figure is a single-GW model estimate — labelled, never a promise.
+function capLev(C, F) {
+  const eEp = Math.round(((C.ep || 0) - (F.ep || 0)) * 10) / 10;
+  const eP6 = Math.round(((C.p6 || 0) - (F.p6 || 0)) * 10) / 10;
+  const eP10 = Math.round(((C.p10 || 0) - (F.p10 || 0)) * 10) / 10;
+  let cls = 'MATCH', txt = 'about what the field gets — zero leverage';
+  if (eEp >= 0.4) { cls = 'UPSIDE'; txt = 'beats the field captain on expected pts'; }
+  else if (eEp <= -0.4) { cls = 'BEHIND'; txt = 'trails the field on expected pts — a contrarian gamble'; }
+  if (cls === 'UPSIDE' && eP10 < -4) { cls = 'SWING'; txt = 'expected edge over the field, but a LOWER haul chance — upside with ceiling risk'; }
+  else if (cls !== 'UPSIDE' && eEp >= 0 && eP10 >= 4) { cls = 'HAUL'; txt = 'matched on expected pts but a higher ceiling than the field'; }
+  return { eEp, eP6, eP10, cls, txt };
+}
+function capLevColor(cls) {
+  return (cls === 'UPSIDE' || cls === 'HAUL') ? 'var(--green)' : cls === 'MATCH' ? 'var(--amber)' : cls === 'SWING' ? 'var(--amber)' : 'var(--red)';
+}
+// field captain = the candidate the most rivals currently captain (tie -> higher ep)
+function capFieldOf(cands) {
+  const c = cands.slice().sort((a, b) => ((b.fieldShare || 0) - (a.fieldShare || 0)) || ((b.ep || 0) - (a.ep || 0)))[0];
+  return c || null;
+}
+// one-line HTML leverage readout for a candidate vs the field captain
+function capLevLine(C, F) {
+  if (!C || !F) return '';
+  if (C === F || (C.name && C.name === F.name)) return '<span class="muted">field captain — captaining him is zero leverage (safe)</span>';
+  const L = capLev(C, F);
+  const col = capLevColor(L.cls);
+  const epTxt = (L.eEp > 0 ? '+' : '') + L.eEp.toFixed(1);
+  const haulTxt = (F.p10 != null && C.p10 != null) ? ' · haul ' + (L.eP10 > 0 ? '+' : '') + L.eP10.toFixed(0) + '%' : '';
+  return '<span class="tk-opp">leverage vs field (' + esc(F.name) + '): <b style="color:' + col + '">' + epTxt + ' ep</b>' + haulTxt + ' · <i>' + L.txt + '</i></span>';
+}
+// haul/return profile for an element id if it exists in the player catalog (else null)
+function ppOfId(id) {
+  const p = (DATA.players || []).find(x => x.id === id);
+  return p ? playerProb(p) : null;
+}
+
 // Legal FPL formations (outfield D+M+F = 10; each XI = GK1 + D3-5 + M3-5 + F1-3)
 const LEGAL_FMS = (() => { const a = []; for (let d = 3; d <= 5; d++) for (let m = 3; m <= 5; m++) { const f = 10 - d - m; if (f >= 1 && f <= 3) a.push([1, d, m, f]); } return a; })();
 const posKey = p => { const x = p.pos; return (x === 1 || x === 'GK') ? 'GK' : (x === 2 || x === 'DEF') ? 'DEF' : (x === 3 || x === 'MID') ? 'MID' : 'FWD'; };
