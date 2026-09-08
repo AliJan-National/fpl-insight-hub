@@ -610,6 +610,7 @@ function renderWildcard() {
 function scout(p) {
   const d = (p.xg_diff || 0);
   const PP = playerProb(p);
+  const PS = startProb(p); const SL = selLabel(PS);
   return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
   <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
   <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
@@ -617,7 +618,8 @@ function scout(p) {
   <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" title="form-adjusted ${f.adjv ?? f.fdr} (base ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')}</span><br>
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">🎲 P(≥6) ${PP.p6}% · P(≥10) ${PP.p10}% <span class="muted">(chance ≠ prediction — real GW1-3 + pos base rate)</span> · swing ±${PP.sd.toFixed(1)}/GW</span><br>
-  <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
+  <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span><br>
+  <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>`;
 }
 function normName(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -710,6 +712,7 @@ function pairDecision(A, B, q0) {
       + '<div style="display:flex;justify-content:space-between"><span class="muted">5-GW total</span><b>' + t.toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">reliability</span><b>' + Math.round(r * 100) + '%</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/270</b></div>'
+      + selLine(p)
       + ppRows(p)
       + teamDefLine(p)
       + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
@@ -1286,13 +1289,53 @@ function reliab(p) {
   return r;
 }
 
+// ---- Selection / minutes model (audit roadmap #6) ----
+// Estimates P(player starts next GW) from REAL evidence: his actual per-GW
+// starts this season (GW rows with >=60 mins = a start) blended with minutes,
+// gated by his official status. Replaces the crude 0.5+0.5*(mins/270) guess
+// that treated a 270-min lock and a rotation-risk defender too alike.
+const SEL_MEMO = {};
+function selState(p) {
+  const rows = (DATA.history || {})[p.id] || [];
+  let n = 0, starts = 0, mins = 0;
+  rows.forEach(r => { n++; mins += r[4] || 0; if ((r[4] || 0) >= 60) starts++; });
+  return { n, starts, mins };
+}
+function startProb(p, over) {
+  const mins = over && over.mins != null ? over.mins : (p.mins || 0);
+  const status = over && over.status != null ? over.status : (p.status || 'a');
+  const key = p.id + '|' + mins + '|' + status;
+  if (SEL_MEMO[key] != null) return SEL_MEMO[key];
+  const statusBase = (status === 'i' || status === 's') ? 0.05 : status === 'd' ? 0.4 : status === 'u' ? 0.6 : 1;
+  const { n, starts } = selState(p);
+  const startFrac = n ? starts / n : 0;
+  const w = n / (n + 1.5); // trust the real start record more each GW
+  const fallback = mins >= 240 ? 0.95 : mins >= 180 ? 0.8 : mins >= 90 ? 0.6 : mins > 0 ? 0.4 : 0.2;
+  const evidence = w * startFrac + (1 - w) * fallback;
+  const pStart = Math.min(0.97, Math.max(0.02, statusBase * (0.3 + 0.7 * evidence)));
+  SEL_MEMO[key] = pStart;
+  return pStart;
+}
+function selLabel(pStart) {
+  if (pStart >= 0.9) return { txt: 'nailed-on', c: 'var(--green)' };
+  if (pStart >= 0.7) return { txt: 'high minutes', c: 'var(--green)' };
+  if (pStart >= 0.5) return { txt: 'rotation risk', c: 'var(--amber)' };
+  if (pStart >= 0.3) return { txt: 'bench risk', c: 'var(--red)' };
+  return { txt: 'fringe', c: 'var(--red)' };
+}
+function selLine(p) {
+  const ps = startProb(p);
+  const l = selLabel(ps);
+  return '<div style="display:flex;justify-content:space-between"><span class="muted" title="model: his real GW1-' + ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3) + ' starts + official status">starts (selection model)</span><b style="color:' + l.c + '">~' + Math.round(ps * 100) + '% · ' + l.txt + '</b></div>';
+}
+
 // per-GW model projection: blend(official ep, form) × form-adjusted FDR × H/A × minutes × reliability
 const projP = (p, i) => {
   const t = window.TF[p.team] || {};
   const a = (t.afx || [3, 3, 3, 3, 3, 3, 3])[i] ?? 3;
   const f = (p.next3 || [])[i] || null;
   const ha = f ? f.ha : null;
-  const minProb = p.status !== 'a' ? 0.3 : Math.min(1, 0.5 + 0.5 * ((p.mins || 0) / 270));
+  const minProb = startProb(p);
   const base = 0.55 * (p.ep_next || 0) + 0.45 * (p.form || 0);
   return base * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
@@ -1333,7 +1376,7 @@ function playerProb(p, over) {
   let p6 = n ? w * (100 * obs6 / n) + (1 - w) * prior6 : prior6;
   let p10 = n ? w * (100 * obs10 / n) + (1 - w) * prior10 : prior10;
   // minutes gate: a benched player cannot return; scale both chances down
-  const minProb = status !== 'a' ? 0.3 : Math.min(1, 0.5 + 0.5 * (mins / 270));
+  const minProb = startProb(p, { mins, status });
   const gate = 0.25 + 0.75 * minProb;
   p6 = Math.max(1, Math.min(85, Math.round(p6 * gate)));
   p10 = Math.max(1, Math.min(60, Math.round(p10 * gate)));
