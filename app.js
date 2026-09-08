@@ -176,9 +176,8 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   const ownedIds = new Set(squad.map(s => s.r.element));
   const capScore = s => s.ep * (fdrMult[(s.fxs[0] || {}).afdr || (s.fxs[0] || {}).fdr || 3] || 1) * (((s.fxs[0] || {}).ha) === 'H' ? 1.03 : 0.97) * (0.9 + 0.1 * ownForm(s));
 
-  // ---- Projected best XI (FPL bench rules: GK1 + DEF3 + MID3 + FWD2) ----
-  const byPos = p => squad.filter(s => s.pos === p).sort((a, b) => b.ep - a.ep);
-  const xi = [...byPos(1).slice(0, 1), ...byPos(2).slice(0, 3), ...byPos(3).slice(0, 3), ...byPos(4).slice(0, 2)];
+    // ---- Projected best XI: legal 11-man FPL formation (fixes the old 9-player cut) ----
+  const xi = bestXI(squad, s => s.ep) || squad.slice(0, 11);
   const xiSet = new Set(xi.map(s => s.r.element));
   const capRank = [...xi].sort((a, b) => capScore(b) - capScore(a));
   const capPick = capRank[0];
@@ -199,12 +198,12 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     s.verdicts = v;
   });
 
-  // ---- XI summary ----
-  const xiCells = [...byPos(1).slice(0, 1), ...byPos(2).slice(0, 3), ...byPos(3).slice(0, 3), ...byPos(4).slice(0, 2)]
-    .map(s => `<div class="xi-cell ${capPick && s.r.element === capPick.r.element ? 'capt' : ''}">
+  // ---- XI summary (11 cells; bench holds the remaining 4) ----
+  const xiCells = xi.map(s => `<div class="xi-cell ${capPick && s.r.element === capPick.r.element ? 'capt' : ''}">
       <div>${esc(s.e ? s.e.n : '?')}</div><div class="ep">${s.ep.toFixed(1)}</div>
       <div class="fn">${posName[s.pos]} · ${(s.fxs[0] || {}).opp || '—'}${(s.fxs[0] || {}).ha === 'H' ? '(H)' : '(A)'}</div>
     </div>`).join('');
+
   $('#xiSummary').innerHTML = `
     <div class="xi-wrap">
       <div class="xi-stats">
@@ -1204,19 +1203,31 @@ const projP = (p, i) => {
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
 function startersAt(squad, i) {
-  const gks = squad.filter(p => p.pos === 'GK').sort((a, b) => projP(b, i) - projP(a, i));
-  const out = gks.slice(0, 1);
-  const need = { DEF: 3, MID: 3, FWD: 2 };
-  for (const pos of ['DEF', 'MID', 'FWD']) {
-    const arr = squad.filter(p => p.pos === pos).sort((a, b) => projP(b, i) - projP(a, i));
-    out.push(...arr.slice(0, need[pos]));
-  }
-  return out;
+  return bestXI(squad, p => projP(p, i)) || squad.slice(0, 11);
 }
 const teamProjAt = (squad, i) => {
   const st = startersAt(squad, i);
   return st.reduce((s, p) => s + projP(p, i), 0) + Math.max(0, ...st.map(p => projP(p, i)));
 };
+// Legal FPL formations (outfield D+M+F = 10; each XI = GK1 + D3-5 + M3-5 + F1-3)
+const LEGAL_FMS = (() => { const a = []; for (let d = 3; d <= 5; d++) for (let m = 3; m <= 5; m++) { const f = 10 - d - m; if (f >= 1 && f <= 3) a.push([1, d, m, f]); } return a; })();
+const posKey = p => { const x = p.pos; return (x === 1 || x === 'GK') ? 'GK' : (x === 2 || x === 'DEF') ? 'DEF' : (x === 3 || x === 'MID') ? 'MID' : 'FWD'; };
+// best legal 11 from a squad (players may carry pos as numeric 1-4 or string)
+function bestXI(list, scoreFn) {
+  const g = { GK: [], DEF: [], MID: [], FWD: [] };
+  list.forEach(p => { (g[posKey(p)] || g.FWD).push(p); });
+  ['GK', 'DEF', 'MID', 'FWD'].forEach(k => g[k].sort((a, b) => scoreFn(b) - scoreFn(a)));
+  let best = null;
+  for (const [gk, d, m, f] of LEGAL_FMS) {
+    if (g.GK.length < gk || g.DEF.length < d || g.MID.length < m || g.FWD.length < f) continue;
+    const cand = [...g.GK.slice(0, gk), ...g.DEF.slice(0, d), ...g.MID.slice(0, m), ...g.FWD.slice(0, f)];
+    if (cand.length !== 11) continue;
+    const sum = cand.reduce((x, p) => x + scoreFn(p), 0);
+    if (!best || sum > best.sum) best = { sum, xi: cand };
+  }
+  return best ? best.xi : null;
+}
+
 const shapeOK = (squad, out, inn) => {
   const c = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   squad.forEach(p => c[p.pos]++);
