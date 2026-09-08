@@ -1,0 +1,1731 @@
+{
+ "meta": {
+  "mode": "demo",
+  "provider": "Simulated elite-manager feed (demo accounts only). Connect the X API via ingest_x.py to go live.",
+  "target_gw": 4,
+  "deadline": "2026-09-12 12:30",
+  "window_start": "2026-09-03T07:43:29Z",
+  "generated": "2026-09-08T07:43:29Z",
+  "completeness": 87,
+  "labels": "demo"
+ },
+ "accounts": [
+  {
+   "handle": "@demoEliteA",
+   "name": "Elite Manager A (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoEliteB",
+   "name": "Elite Manager B (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoEliteC",
+   "name": "Elite Manager C (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoEliteD",
+   "name": "Elite Manager D (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoEliteE",
+   "name": "Elite Manager E (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoEliteF",
+   "name": "Elite Manager F (demo)",
+   "category": "Elite Manager",
+   "tier": 1,
+   "base_weight": 1.0,
+   "followers": 420000,
+   "verified": true,
+   "seed_reliability": 93,
+   "seasons": 6,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoStats1",
+   "name": "FPL Analyst 7 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoStats2",
+   "name": "FPL Analyst 8 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoStats3",
+   "name": "FPL Analyst 9 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoStats4",
+   "name": "FPL Analyst 10 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoModelX",
+   "name": "FPL Analyst 11 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoFixtureDoc",
+   "name": "FPL Analyst 12 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoxGWatch",
+   "name": "FPL Analyst 13 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoTacticsLab",
+   "name": "FPL Analyst 14 (demo)",
+   "category": "FPL Analyst",
+   "tier": 2,
+   "base_weight": 0.85,
+   "followers": 97000,
+   "verified": true,
+   "seed_reliability": 86,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "decisions + analysis"
+  },
+  {
+   "handle": "@demoPodFPL",
+   "name": "FPL Creator 15 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoYTFPL",
+   "name": "FPL Creator 16 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoWriterFPL",
+   "name": "FPL Creator 17 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoNewsFPL",
+   "name": "FPL Creator 18 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoShowFPL",
+   "name": "FPL Creator 19 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoBlogFPL",
+   "name": "FPL Creator 20 (demo)",
+   "category": "FPL Creator",
+   "tier": 3,
+   "base_weight": 0.65,
+   "followers": 41000,
+   "verified": false,
+   "seed_reliability": 74,
+   "seasons": 4,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoFan001",
+   "name": "General Community 21 (demo)",
+   "category": "General Community",
+   "tier": 4,
+   "base_weight": 0.2,
+   "followers": 2400,
+   "verified": false,
+   "seed_reliability": 55,
+   "seasons": 2,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoFan002",
+   "name": "General Community 22 (demo)",
+   "category": "General Community",
+   "tier": 4,
+   "base_weight": 0.2,
+   "followers": 2400,
+   "verified": false,
+   "seed_reliability": 55,
+   "seasons": 2,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoFan003",
+   "name": "General Community 23 (demo)",
+   "category": "General Community",
+   "tier": 4,
+   "base_weight": 0.2,
+   "followers": 2400,
+   "verified": false,
+   "seed_reliability": 55,
+   "seasons": 2,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoFan004",
+   "name": "General Community 24 (demo)",
+   "category": "General Community",
+   "tier": 4,
+   "base_weight": 0.2,
+   "followers": 2400,
+   "verified": false,
+   "seed_reliability": 55,
+   "seasons": 2,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  },
+  {
+   "handle": "@demoFan005",
+   "name": "General Community 25 (demo)",
+   "category": "General Community",
+   "tier": 4,
+   "base_weight": 0.2,
+   "followers": 2400,
+   "verified": false,
+   "seed_reliability": 55,
+   "seasons": 2,
+   "specialization": "Overall",
+   "content": "content & opinion"
+  }
+ ],
+ "posts": [
+  {
+   "id": "p0",
+   "author": "@demoEliteC",
+   "ts": "2026-09-07T21:43:29Z",
+   "kind": "post",
+   "text": "Isak is my quiet GW4 move \u2014 19.6% ownership, GW4 FUL(H), and he out-scored every LIV attacker over GW1-3. Buying before the market does.",
+   "players": [
+    "Isak"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p1",
+   "author": "@demoxGWatch",
+   "ts": "2026-09-07T23:43:29Z",
+   "kind": "post",
+   "text": "Isak: xGI 2.35 over the last three, minutes safe-ish, price still 9.0. Elite interest is rising while league-wide transfers stay flat \u2014 that is the early-signal shape.",
+   "players": [
+    "Isak"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p2",
+   "author": "@demoStats2",
+   "ts": "2026-09-08T01:43:29Z",
+   "kind": "post",
+   "text": "Under-owned vs output: Isak is ~20% owned but top-3 FWD for points and GW4 FUL(H). The ownership gap closes fast; get ahead of it.",
+   "players": [
+    "Isak"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p3",
+   "author": "@demoStats1",
+   "ts": "2026-09-08T03:43:29Z",
+   "kind": "post",
+   "text": "Isak model score creeps into template territory if he starts GW5. Watch the LIV minutes, but the direction is clear.",
+   "players": [
+    "Isak"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "lean",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p4",
+   "author": "@demoFixtureDoc",
+   "ts": "2026-09-06T21:43:29Z",
+   "kind": "post",
+   "text": "B.Fernandes GW4 is MCI(H) FDR 4 \u2014 the single worst elite fixture window this week. Selling him funds Isak + the defence. Move is about fixtures, not form.",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p5",
+   "author": "@demoModelX",
+   "ts": "2026-09-07T09:43:29Z",
+   "kind": "post",
+   "text": "EV check: holding B.Fernandes at 12.0 into MCI(H) loses to Isak + \u00a33m reinvested over GW4-6 in every sim I ran.",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p6",
+   "author": "@demoWriterFPL",
+   "ts": "2026-09-07T13:43:29Z",
+   "kind": "post",
+   "text": "Selling Bruno for the Isak restructure. Painful because GW5 looks juicy \u2014 but that GW5 fixture is exactly why someone else can pick him up in a week.",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p7",
+   "author": "@demoFan003",
+   "ts": "2026-09-07T22:43:29Z",
+   "kind": "post",
+   "text": "everyone selling B.Fernandes then? funding the Isak train?",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "lean",
+   "category": "transfer",
+   "source_kind": "discussion",
+   "origin": "self",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  },
+  {
+   "id": "p8",
+   "author": "@demoEliteF",
+   "ts": "2026-09-07T05:43:29Z",
+   "kind": "post",
+   "text": "NOT selling B.Fernandes. The GW4 MCI(H) red is real but GW5-6 flip green and his per-90 output is top-tier. Selling on a one-week fixture is how you lose your best mid.",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "hold"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p9",
+   "author": "@demoStats3",
+   "ts": "2026-09-07T16:43:29Z",
+   "kind": "post",
+   "text": "Bruno sell wave is fixture-chasing, not form-based: underlying numbers unchanged. If you own him, the GW5 fixture is the payoff \u2014 restructure around him.",
+   "players": [
+    "B.Fernandes"
+   ],
+   "ents": [
+    "hold"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p10",
+   "author": "@demoEliteA",
+   "ts": "2026-09-07T05:43:29Z",
+   "kind": "post",
+   "text": "Haaland in for GW4. Penalty, minutes, ceiling \u2014 the MUN(A) FDR 4 is the only knock and I am backing the ceiling. Locked.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "in",
+    "cap"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p11",
+   "author": "@demoEliteB",
+   "ts": "2026-09-07T22:43:29Z",
+   "kind": "post",
+   "text": "Captaining Haaland. Yes it is MUN away \u2014 but he is the one player you never captain against yourself.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "action",
+   "category": "captain",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p12",
+   "author": "@demoEliteC",
+   "ts": "2026-09-08T04:43:29Z",
+   "kind": "post",
+   "text": "Haaland GW4 captain for the ceiling; the away fixture is priced into the field leaving the armband.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "action",
+   "category": "captain",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p13",
+   "author": "@demoPodFPL",
+   "ts": "2026-09-08T01:43:29Z",
+   "kind": "post",
+   "text": "POD leans Haaland captain, but it is genuinely close \u2014 the Palmer fixture is the counter-argument.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "lean",
+   "category": "captain",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p14",
+   "author": "@demoStats1",
+   "ts": "2026-09-08T02:43:29Z",
+   "kind": "post",
+   "text": "Data split: Haaland has the ceiling and penalties; GW4 xG model vs MUN(A) actually edges Palmer. Real debate.",
+   "players": [
+    "Haaland",
+    "Palmer"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "lean",
+   "category": "captain",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p15",
+   "author": "@demoYTFPL",
+   "ts": "2026-09-07T12:43:29Z",
+   "kind": "post",
+   "text": "ICYMI @demoEliteA locked Haaland in \u2014 full reasoning on the show tonight.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "opinion",
+   "origin": "p10",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p16",
+   "author": "@demoFan001",
+   "ts": "2026-09-07T15:43:29Z",
+   "kind": "post",
+   "text": "same as @demoEliteA, Haaland in.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "opinion",
+   "origin": "p10",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  },
+  {
+   "id": "p17",
+   "author": "@demoFan002",
+   "ts": "2026-09-07T20:43:29Z",
+   "kind": "post",
+   "text": "haaland captain per @demoEliteA",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "captain",
+   "source_kind": "opinion",
+   "origin": "p10",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  },
+  {
+   "id": "p18",
+   "author": "@demoTacticsLab",
+   "ts": "2026-09-07T19:43:29Z",
+   "kind": "post",
+   "text": "Haaland minutes risk this GW4 is under-discussed: two starts + a midweek tie. Still fine, but the 71% ownership means you gain nothing from capping him.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "rotation",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p19",
+   "author": "@demoEliteD",
+   "ts": "2026-09-07T01:43:29Z",
+   "kind": "post",
+   "text": "Palmer captain GW4. HUL(H) FDR 2 + ownership gap + he is the best FDR play of the week. The Haaland crowd is captaining a banner, not a fixture.",
+   "players": [
+    "Palmer"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "action",
+   "category": "captain",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p20",
+   "author": "@demoStats4",
+   "ts": "2026-09-07T10:43:29Z",
+   "kind": "post",
+   "text": "Fixture-adjusted model GW4: Palmer (HUL H, FDR 2) > Haaland (MUN A, FDR 4). Data backs the armband on Palmer this week.",
+   "players": [
+    "Palmer"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "action",
+   "category": "captain",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p21",
+   "author": "@demoEliteE",
+   "ts": "2026-09-07T17:43:29Z",
+   "kind": "post",
+   "text": "Keeping Palmer and seriously considering the armband. CHE attack + HUL(H) is the cleanest captaincy profile on the board.",
+   "players": [
+    "Palmer"
+   ],
+   "ents": [
+    "cap",
+    "hold"
+   ],
+   "intent": "lean",
+   "category": "captain",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p22",
+   "author": "@demoBlogFPL",
+   "ts": "2026-09-08T02:43:29Z",
+   "kind": "post",
+   "text": "If Palmer outscores Haaland this GW, the template finally breaks. Elite chatter is ~split \u2014 that is when the armband actually matters.",
+   "players": [
+    "Palmer",
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "captain",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p23",
+   "author": "@demoFan004",
+   "ts": "2026-09-08T00:43:29Z",
+   "kind": "post",
+   "text": "palmer captain, easy fixture",
+   "players": [
+    "Palmer"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "captain",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  },
+  {
+   "id": "p24",
+   "author": "@demoStats2",
+   "ts": "2026-09-07T06:43:29Z",
+   "kind": "post",
+   "text": "Saka remains the minutes king: 246 of 270, GW4 SUN(A). The safe third premium if you want reliability over ceiling.",
+   "players": [
+    "Saka"
+   ],
+   "ents": [
+    "hold",
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p25",
+   "author": "@demoEliteA",
+   "ts": "2026-09-07T21:43:29Z",
+   "kind": "post",
+   "text": "Saka in as my third premium \u2014 fixture-proof minutes. No Europe drama this week.",
+   "players": [
+    "Saka"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p26",
+   "author": "@demoPodFPL",
+   "ts": "2026-09-08T03:43:29Z",
+   "kind": "post",
+   "text": "Saka captain is the hedge if Haaland/Palmer feels like a coin flip.",
+   "players": [
+    "Saka"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "lean",
+   "category": "captain",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p27",
+   "author": "@demoTacticsLab",
+   "ts": "2026-09-07T08:43:29Z",
+   "kind": "post",
+   "text": "Rotation flag \u2014 opinion, not news: Gakpo started all three and LIV have a midweek tie before GW4 FUL(H). Watch the presser before capping.",
+   "players": [
+    "Gakpo"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "rotation",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p28",
+   "author": "@demoStats3",
+   "ts": "2026-09-07T22:43:29Z",
+   "kind": "post",
+   "text": "Gakpo is the top-scoring player in the game (28) yet the market is nervous on minutes. That tension = the GW4 captain headache in one player.",
+   "players": [
+    "Gakpo"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "neutral",
+   "category": "captain",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p29",
+   "author": "@demoShowFPL",
+   "ts": "2026-09-08T00:43:29Z",
+   "kind": "post",
+   "text": "Jo\u00e3o Pedro now the headline pick in every draft we see \u2014 but at 72.1% ownership this is late-consensus, not a differential. The window closed two GWs ago.",
+   "players": [
+    "Jo\u00e3o Pedro"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "neutral",
+   "category": "transfer",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p30",
+   "author": "@demoStats4",
+   "ts": "2026-09-08T03:43:29Z",
+   "kind": "post",
+   "text": "Jo\u00e3o Pedro chatter is spiking NOW while the market already owns him at 72.1%. Classic late signal: great player, zero edge left. Compare to Isak where elite interest leads ownership.",
+   "players": [
+    "Jo\u00e3o Pedro"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p31",
+   "author": "@demoYTFPL",
+   "ts": "2026-09-07T02:43:29Z",
+   "kind": "post",
+   "text": "Pedro Porro is the differential that wins you the league \u2014 premium route into TOT attack, trust me.",
+   "players": [
+    "Pedro Porro"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p32",
+   "author": "@demoFan005",
+   "ts": "2026-09-07T21:43:29Z",
+   "kind": "post",
+   "text": "porro haul coming, get him in!!",
+   "players": [
+    "Pedro Porro"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  },
+  {
+   "id": "p33",
+   "author": "@demoFixtureDoc",
+   "ts": "2026-09-08T01:43:29Z",
+   "kind": "post",
+   "text": "Pedro Porro hype is running ahead of the data: 8 pts in 3, minutes already at risk. DEF premium with no returns is a price trap.",
+   "players": [
+    "Pedro Porro"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p34",
+   "author": "@demoStats3",
+   "ts": "2026-09-08T04:43:29Z",
+   "kind": "post",
+   "text": "Hype check \u2014 Porro: X buzz high, model GW4 score middling. This is a trap shape, not a signal shape.",
+   "players": [
+    "Pedro Porro"
+   ],
+   "ents": [
+    "out"
+   ],
+   "intent": "weak",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p35",
+   "author": "@demoStats1",
+   "ts": "2026-09-07T03:43:29Z",
+   "kind": "post",
+   "text": "Defensive template: Raya + Gabriel is the core in ~6 of 10 elite squads I track. Clean-sheet floor + no rotation talk at ARS.",
+   "players": [
+    "Raya",
+    "Gabriel"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p36",
+   "author": "@demoEliteD",
+   "ts": "2026-09-07T19:43:29Z",
+   "kind": "post",
+   "text": "Gabriel in \u2014 the set-piece threat makes him the pick over the ARS full-backs.",
+   "players": [
+    "Gabriel"
+   ],
+   "ents": [
+    "in"
+   ],
+   "intent": "action",
+   "category": "transfer",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p37",
+   "author": "@demoWriterFPL",
+   "ts": "2026-09-06T23:43:29Z",
+   "kind": "post",
+   "text": "Wildcard timing: most elite accounts I follow are leaning GW6, syncing with the fixture swing. Structure locked now, trigger later.",
+   "players": [],
+   "ents": [
+    "wc"
+   ],
+   "intent": "lean",
+   "category": "chip",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p38",
+   "author": "@demoEliteB",
+   "ts": "2026-09-07T13:43:29Z",
+   "kind": "post",
+   "text": "WC GW6 planned. Bench Boost saved for the double \u2014 the GW4 captain debate does not change the chip calendar.",
+   "players": [],
+   "ents": [
+    "wc",
+    "bench boost"
+   ],
+   "intent": "action",
+   "category": "chip",
+   "source_kind": "decision",
+   "origin": "self",
+   "engagement": {
+    "views": 239200,
+    "likes": 9200,
+    "reposts": 1022,
+    "replies": 242
+   },
+   "links": []
+  },
+  {
+   "id": "p39",
+   "author": "@demoStats2",
+   "ts": "2026-09-07T20:43:29Z",
+   "kind": "post",
+   "text": "Chip watch: ~30% of elite signals mention a GW6 wildcard; FH is being held for a blank. TC is the live debate \u2014 but GW4 is not the TC week (fixture FDR).",
+   "players": [],
+   "ents": [
+    "tc",
+    "fh"
+   ],
+   "intent": "weak",
+   "category": "chip",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 39000,
+    "likes": 1500,
+    "reposts": 166,
+    "replies": 39
+   },
+   "links": []
+  },
+  {
+   "id": "p40",
+   "author": "@demoShowFPL",
+   "ts": "2026-09-08T04:43:29Z",
+   "kind": "post",
+   "text": "Triple captain? Not this week \u2014 Haaland at MUN (A) is not a TC profile. Save it for a double.",
+   "players": [
+    "Haaland"
+   ],
+   "ents": [
+    "cap"
+   ],
+   "intent": "weak",
+   "category": "chip",
+   "source_kind": "opinion",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": []
+  },
+  {
+   "id": "p41",
+   "author": "@demoBlogFPL",
+   "ts": "2026-09-05T19:43:29Z",
+   "kind": "post",
+   "text": "GW3 review: the elite template quietly moved to premium-heavy 3-5-2 two weeks before the market caught up.",
+   "players": [],
+   "ents": [],
+   "intent": "neutral",
+   "category": "template",
+   "source_kind": "analysis",
+   "origin": "self",
+   "engagement": {
+    "views": 135200,
+    "likes": 5200,
+    "reposts": 577,
+    "replies": 136
+   },
+   "links": [
+    "https://demo.example/gw3-review"
+   ]
+  },
+  {
+   "id": "p42",
+   "author": "@demoFan002",
+   "ts": "2026-09-04T13:43:29Z",
+   "kind": "post",
+   "text": "is B.Fernandes essential still?? who do we captain",
+   "players": [
+    "B.Fernandes",
+    "Haaland"
+   ],
+   "ents": [],
+   "intent": "neutral",
+   "category": "captain",
+   "source_kind": "discussion",
+   "origin": "self",
+   "engagement": {
+    "views": 910,
+    "likes": 35,
+    "reposts": 3,
+    "replies": 0
+   },
+   "links": []
+  }
+ ],
+ "calls": [
+  {
+   "id": "c0",
+   "account": "@demoEliteA",
+   "gw": 1,
+   "type": "captain",
+   "player": "Saka"
+  },
+  {
+   "id": "c1",
+   "account": "@demoEliteA",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Haaland"
+  },
+  {
+   "id": "c2",
+   "account": "@demoEliteA",
+   "gw": 2,
+   "type": "captain",
+   "player": "Haaland"
+  },
+  {
+   "id": "c3",
+   "account": "@demoEliteA",
+   "gw": 2,
+   "type": "avoid",
+   "player": "Eze"
+  },
+  {
+   "id": "c4",
+   "account": "@demoEliteA",
+   "gw": 3,
+   "type": "transfer",
+   "player": "B.Fernandes"
+  },
+  {
+   "id": "c5",
+   "account": "@demoEliteB",
+   "gw": 1,
+   "type": "captain",
+   "player": "Haaland"
+  },
+  {
+   "id": "c6",
+   "account": "@demoEliteB",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Gabriel"
+  },
+  {
+   "id": "c7",
+   "account": "@demoEliteB",
+   "gw": 2,
+   "type": "hold",
+   "player": "Palmer"
+  },
+  {
+   "id": "c8",
+   "account": "@demoEliteB",
+   "gw": 2,
+   "type": "captain",
+   "player": "Jo\u00e3o Pedro"
+  },
+  {
+   "id": "c9",
+   "account": "@demoEliteB",
+   "gw": 3,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c10",
+   "account": "@demoEliteC",
+   "gw": 1,
+   "type": "transfer",
+   "player": "B.Fernandes"
+  },
+  {
+   "id": "c11",
+   "account": "@demoEliteC",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c12",
+   "account": "@demoEliteC",
+   "gw": 2,
+   "type": "avoid",
+   "player": "Mbeumo"
+  },
+  {
+   "id": "c13",
+   "account": "@demoEliteC",
+   "gw": 3,
+   "type": "captain",
+   "player": "Haaland"
+  },
+  {
+   "id": "c14",
+   "account": "@demoEliteD",
+   "gw": 1,
+   "type": "captain",
+   "player": "Palmer"
+  },
+  {
+   "id": "c15",
+   "account": "@demoEliteD",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Haaland"
+  },
+  {
+   "id": "c16",
+   "account": "@demoEliteD",
+   "gw": 2,
+   "type": "captain",
+   "player": "B.Fernandes"
+  },
+  {
+   "id": "c17",
+   "account": "@demoEliteD",
+   "gw": 3,
+   "type": "hold",
+   "player": "Palmer"
+  },
+  {
+   "id": "c18",
+   "account": "@demoEliteE",
+   "gw": 1,
+   "type": "hold",
+   "player": "Isak"
+  },
+  {
+   "id": "c19",
+   "account": "@demoEliteE",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Saka"
+  },
+  {
+   "id": "c20",
+   "account": "@demoEliteE",
+   "gw": 2,
+   "type": "captain",
+   "player": "Gakpo"
+  },
+  {
+   "id": "c21",
+   "account": "@demoEliteE",
+   "gw": 3,
+   "type": "transfer",
+   "player": "Jo\u00e3o Pedro"
+  },
+  {
+   "id": "c22",
+   "account": "@demoEliteF",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Rogers"
+  },
+  {
+   "id": "c23",
+   "account": "@demoEliteF",
+   "gw": 2,
+   "type": "captain",
+   "player": "Palmer"
+  },
+  {
+   "id": "c24",
+   "account": "@demoEliteF",
+   "gw": 3,
+   "type": "transfer",
+   "player": "B.Fernandes"
+  },
+  {
+   "id": "c25",
+   "account": "@demoStats1",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Haaland"
+  },
+  {
+   "id": "c26",
+   "account": "@demoStats1",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c27",
+   "account": "@demoStats1",
+   "gw": 2,
+   "type": "captain",
+   "player": "Haaland"
+  },
+  {
+   "id": "c28",
+   "account": "@demoStats2",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Raya"
+  },
+  {
+   "id": "c29",
+   "account": "@demoStats2",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Wissa"
+  },
+  {
+   "id": "c30",
+   "account": "@demoStats3",
+   "gw": 1,
+   "type": "hold",
+   "player": "Jo\u00e3o Pedro"
+  },
+  {
+   "id": "c31",
+   "account": "@demoStats3",
+   "gw": 2,
+   "type": "hold",
+   "player": "Rogers"
+  },
+  {
+   "id": "c32",
+   "account": "@demoStats4",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Gabriel"
+  },
+  {
+   "id": "c33",
+   "account": "@demoStats4",
+   "gw": 2,
+   "type": "captain",
+   "player": "Saka"
+  },
+  {
+   "id": "c34",
+   "account": "@demoModelX",
+   "gw": 2,
+   "type": "avoid",
+   "player": "Isak"
+  },
+  {
+   "id": "c35",
+   "account": "@demoFixtureDoc",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Mbeumo"
+  },
+  {
+   "id": "c36",
+   "account": "@demoFixtureDoc",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Raya"
+  },
+  {
+   "id": "c37",
+   "account": "@demoxGWatch",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c38",
+   "account": "@demoxGWatch",
+   "gw": 2,
+   "type": "transfer",
+   "player": "B.Fernandes"
+  },
+  {
+   "id": "c39",
+   "account": "@demoTacticsLab",
+   "gw": 1,
+   "type": "hold",
+   "player": "Gabriel"
+  },
+  {
+   "id": "c40",
+   "account": "@demoPodFPL",
+   "gw": 1,
+   "type": "captain",
+   "player": "Palmer"
+  },
+  {
+   "id": "c41",
+   "account": "@demoYTFPL",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Wissa"
+  },
+  {
+   "id": "c42",
+   "account": "@demoWriterFPL",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c43",
+   "account": "@demoNewsFPL",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Mbeumo"
+  },
+  {
+   "id": "c44",
+   "account": "@demoShowFPL",
+   "gw": 2,
+   "type": "captain",
+   "player": "Isak"
+  },
+  {
+   "id": "c45",
+   "account": "@demoBlogFPL",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Rogers"
+  },
+  {
+   "id": "c46",
+   "account": "@demoFan001",
+   "gw": 1,
+   "type": "transfer",
+   "player": "Mbeumo"
+  },
+  {
+   "id": "c47",
+   "account": "@demoFan002",
+   "gw": 2,
+   "type": "captain",
+   "player": "Palmer"
+  },
+  {
+   "id": "c48",
+   "account": "@demoFan003",
+   "gw": 2,
+   "type": "transfer",
+   "player": "Isak"
+  },
+  {
+   "id": "c49",
+   "account": "@demoFan004",
+   "gw": 1,
+   "type": "captain",
+   "player": "Haaland"
+  },
+  {
+   "id": "c50",
+   "account": "@demoFan005",
+   "gw": 2,
+   "type": "avoid",
+   "player": "Saka"
+  }
+ ]
+}

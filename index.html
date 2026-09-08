@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <header>
@@ -31,6 +31,7 @@
   <button class="tab" data-tab="minileague">🏆 Mini League</button>
   <button class="tab" data-tab="planner">📅 Planner</button>
   <button class="tab" data-tab="compare">⚖️ Compare</button>
+  <button class="tab" data-tab="xint">🧠 X Intel</button>
   <button class="tab" data-tab="radar">Transfer Radar</button>
   <button class="tab" data-tab="captain">Captain &amp; Prices</button>
   <button class="tab" data-tab="players">Players</button>
@@ -156,6 +157,36 @@
     </div>
   </section>
 
+  <section id="xint" class="panel">
+    <div id="xintDq"></div>
+    <div class="card" style="margin-top:14px">
+      <h2>💬 Ask the X Intelligence desk <span class="muted">— understands elite-manager trends in plain English</span></h2>
+      <div class="chips" style="margin-bottom:8px" id="xintQs">
+        <button class="chip">Who are elite managers buying?</button>
+        <button class="chip">Who are they selling?</button>
+        <button class="chip">Is Haaland or Palmer the preferred captain?</button>
+        <button class="chip">Why are people selling B.Fernandes?</button>
+        <button class="chip">Which players are emerging differentials?</button>
+        <button class="chip">Are they transferring Haaland in or just talking?</button>
+        <button class="chip">Which players have high X hype but weak data?</button>
+        <button class="chip">Compare my team with the elite template</button>
+        <button class="chip">Top 5 signals before the deadline</button>
+      </div>
+      <div class="entry-row">
+        <input id="xintQ" type="text" placeholder='Ask: "who is gaining momentum in the last 12 hours?", "show me elite managers who disagree with the consensus", "what are the biggest risks before the deadline?"…'>
+        <button id="xintAsk" class="btn">Ask</button>
+      </div>
+      <p class="muted" style="margin:6px 0 0"></p>
+      <div id="xintOut" class="xint-ans"></div>
+    </div>
+    <div id="xintPulse" style="margin-top:14px"></div>
+    <div id="xintTrends" style="margin-top:14px"></div>
+    <div id="xintPlayers" style="margin-top:14px"></div>
+    <div id="xintCap" style="margin-top:14px"></div>
+    <div id="xintVoices" style="margin-top:14px"></div>
+    <div id="xintTeam" style="margin-top:14px"></div>
+    <div id="xintReport" style="margin-top:14px"></div>
+  </section>
   <section id="minileague" class="panel">
     <div class="card">
       <h2>🏆 Mini League Command Center</h2>
@@ -257,6 +288,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
