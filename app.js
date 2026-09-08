@@ -654,10 +654,126 @@ function findPlayer(q) {
   if (second && second.score >= 50 && (second.p.pts || 0) >= 15 && (second.p.pts || 0) >= 3 * Math.max(1, (first.p.pts || 0))) return second.p;
   return first.p;
 }
+
+// ---- H2H decision engine (v14): "konsa or tarkowski?" should answer, not guess ----
+function resolvePair(q) {
+  const parts = String(q || '').split(/\s+(?:vs|versus|or|and)\s+|\s*,\s*/i).map(s => s.trim()).filter(Boolean);
+  const found = [];
+  for (const part of parts) {
+    const p = findPlayer(part);
+    if (p && !found.some(x => x.id === p.id)) found.push(p);
+    if (found.length >= 2) break;
+  }
+  return found.length >= 2 ? found.slice(0, 2) : null;
+}
+function fxBadges(p) {
+  return (p.next3 || []).slice(0, 3).map(f =>
+    '<span class="fdr f' + (f.afdr ?? f.fdr) + '" title="GW' + f.gw + '">' + f.gw + ':' + f.opp + (f.ha === 'H' ? '(H)' : '(A)') + '</span>').join(' ');
+}
+function fxAvgN(p, n) {
+  const t = window.TF[p.team] || {}; const a = t.afx || []; let tot = 0, c = 0;
+  for (let i = 0; i < n; i++) { const v = a[i]; if (v != null) { tot += v; c++; } }
+  return c ? tot / c : 3;
+}
+function hbar(pct, color) {
+  return '<div class="x-bar"><div class="x-fill" style="width:' + Math.max(3, Math.min(100, pct)) + '%;background:' + color + '"></div></div>';
+}
+function pairDecision(A, B, q0) {
+  const ctx = window.TEAMCTX;
+  const isCap = /captain|armband/.test(String(q0 || '').toLowerCase());
+  const H = 5;
+  const tA = hSumP(A, H), tB = hSumP(B, H);
+  const lead = tA >= tB ? A : B, trail = tA >= tB ? B : A;
+  const edge = Math.abs(tA - tB);
+  let wA = 0, wB = 0;
+  for (let i = 0; i < H; i++) { if (projP(A, i) > projP(B, i)) wA++; else if (projP(B, i) > projP(A, i)) wB++; }
+  const rA = reliab(A), rB = reliab(B);
+  const fxA = fxAvgN(A, 5), fxB = fxAvgN(B, 5);
+  const g0A = projP(A, 0), g0B = projP(B, 0);
+  const maxT = Math.max(tA, tB);
+  const row = (p, t, r) => {
+    const owns = ctx && ctx.squad ? ctx.squad.some(s => s.e && s.e.n === p.name) : null;
+    return '<div style="flex:1;min-width:240px">'
+      + '<div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><b>' + esc(p.name) + '</b> <span class="team-tag">' + p.team + ' · ' + p.pos + ' · £' + p.cost + 'm</span>'
+      + '<span class="team-tag">' + (owns === null ? p.own + '% owned' : owns ? '✅ you own' : '❌ not owned') + '</span></div>'
+      + '<div class="muted" style="margin:2px 0">Next 3: ' + (fxBadges(p) || '—') + '</div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">proj next GW</span><b>' + projP(p, 0).toFixed(1) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">5-GW total</span><b>' + t.toFixed(1) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">reliability</span><b>' + Math.round(r * 100) + '%</b></div>'
+      + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
+      + '</div>';
+  };
+  const lines = [];
+  const share = (tA + tB) > 0 ? Math.round(100 * Math.max(tA, tB) / (tA + tB)) : 50;
+  lines.push('<b style="color:var(--green)">' + esc(lead.name) + '</b> leads the 5-GW model by <b>+' + edge.toFixed(1) + '</b> projected pts ('
+    + Math.max(tA, tB).toFixed(1) + ' vs ' + Math.min(tA, tB).toFixed(1) + '; ' + share + '% of the pair) and wins '
+    + (lead === A ? wA : wB) + '/' + H + ' gameweeks head-to-head.');
+  const leadR = lead === A ? rA : rB, trailR = lead === A ? rB : rA;
+  if (trailR > leadR + 0.08) lines.push(esc(trail.name) + '\u2019s returns are more reliable (' + Math.round(trailR * 100) + '% vs ' + Math.round(leadR * 100) + '%) — the edge on ' + esc(lead.name) + ' leans on fixtures, so weigh floor vs ceiling.');
+  if (Math.abs(fxA - fxB) > 0.35) lines.push('Fixture run differs: ' + esc((fxA < fxB ? A : B).name) + ' has the easier schedule (avg ' + Math.min(fxA, fxB).toFixed(1) + ' vs ' + Math.max(fxA, fxB).toFixed(1) + ' over 5).');
+  let personal = '';
+  if (ctx && ctx.squad && ctx.squad.length) {
+    const ownA = ctx.squad.some(s => s.e && s.e.n === A.name), ownB = ctx.squad.some(s => s.e && s.e.n === B.name);
+    if (ownA && ownB) personal = '<span class="mrow">You own both — this is a <b>start/bench or captain</b> call: ' + esc((g0A >= g0B ? A : B).name) + ' projects higher next GW (' + Math.max(g0A, g0B).toFixed(1) + ' vs ' + Math.min(g0A, g0B).toFixed(1) + ').</span>';
+    else if (ownA || ownB) {
+      const mine = ownA ? A : B, other = ownA ? B : A;
+      if (lead.name === other.name) personal = '<span class="mrow">You own ' + esc(mine.name) + ' but the model prefers ' + esc(other.name) + ' (+' + edge.toFixed(1) + ' over next 5). ' + (other.cost > ctx.maxFund ? 'He costs £' + other.cost + 'm — above your £' + ctx.maxFund.toFixed(1) + 'm budget, so you\u2019d need another sale too.' : 'Affordable within your budget (max £' + ctx.maxFund.toFixed(1) + 'm).') + '</span>';
+      else personal = '<span class="mrow">You own ' + esc(mine.name) + ' and the model agrees he is the stronger pick — keep him.</span>';
+    } else {
+      personal = '<span class="mrow">You own neither. ' + esc(A.name) + ': ' + (A.cost <= ctx.maxFund ? '£' + A.cost + 'm fits your budget' : '£' + A.cost + 'm exceeds your £' + ctx.maxFund.toFixed(1) + 'm budget') + ' · ' + esc(B.name) + ': ' + (B.cost <= ctx.maxFund ? '£' + B.cost + 'm fits your budget' : '£' + B.cost + 'm exceeds your £' + ctx.maxFund.toFixed(1) + 'm budget') + '.</span>';
+    }
+  }
+  return '<div class="card" style="grid-column:1/-1">'
+    + '<h2>⚖️ ' + (isCap ? 'Captain decision' : 'Who to pick?') + ' — ' + esc(A.name) + ' vs ' + esc(B.name) + '</h2>'
+    + '<div style="display:flex;gap:18px;flex-wrap:wrap">' + row(A, tA, rA) + row(B, tB, rB) + '</div>'
+    + '<p style="margin:10px 0 4px">🤖 <b>Decision: pick ' + esc(lead.name) + '</b> — ' + lines.join(' ') + '</p>'
+    + (personal ? '<p class="mrow">' + personal + '</p>' : '')
+    + '<p class="muted" style="margin-top:6px">Projections use the shared form-adjusted model (ep × fixtures × reliability) — estimates, not guarantees. Open ⚖️ Compare for the full 5-GW chart, or ask a follow-up like "but which has better fixtures?".</p>'
+    + '</div>';
+}
+function fxAvg3S(p) { return fxAvgN(p, 3); }
+function suggestAnswer() {
+  const ctx = window.TEAMCTX;
+  if (!ctx || !ctx.squad || !ctx.squad.length) {
+    const cand = DATA.players.filter(p => p.status === 'a' && p.mins >= 180)
+      .map(p => ({ p, s: projP(p, 0) * (0.5 + 0.5 * reliab(p)) })).sort((a, b) => b.s - a.s)[0];
+    const topBuy = (DATA.radar.buys || [])[0], topSell = (DATA.radar.sells || [])[0];
+    let elite = '';
+    try { if (typeof ET !== 'undefined' && ET.ready() && ET.rows().length) { const r = ET.rows(); const bi = r.slice().sort((a, b) => b.net - a.net)[0]; const so = r.slice().sort((a, b) => a.net - b.net)[0]; elite = '<span class="mrow">🧠 Real elite moves (GW' + ET.gws().last + '): bought <b>' + esc((bi || {}).name || '—') + '</b> · sold <b>' + esc((so || {}).name || '—') + '</b>.</span>'; } } catch (e) {}
+    return '<b>Quick suggestions for GW' + ((DATA.fplmeta && DATA.fplmeta.next_gw) || '?') + '</b><br>'
+      + '<span class="mrow">🎯 Model captain: <b>' + (cand ? esc(cand.p.name) : '—') + '</b> (score ' + (cand ? cand.s.toFixed(1) : '') + '). Cross-check vs your squad.</span>'
+      + (topBuy ? '<span class="mrow">🔥 League most-bought: <b>' + esc(topBuy.p.name) + '</b> (' + fmtK(topBuy.p.t_in) + ' in this GW).</span>' : '')
+      + (topSell ? '<span class="mrow">🔻 League most-sold: <b>' + esc(topSell.p.name) + '</b> (' + fmtK(topSell.p.t_out) + ' out) — understand why before following.</span>' : '')
+      + elite
+      + '<span class="mrow">💡 <b>Want it personal?</b> Load your team in My Team, then ask again — or ask a head-to-head like "konsa or tarkowski?", "Haaland or Palmer as captain?".</span>';
+  }
+  const starters = ctx.squad.filter(s => s.e && s.verdicts && s.verdicts.some(v => v[0] === 'START'));
+  const cap3 = starters.slice().sort((a, b) => (b.cap || 0) - (a.cap || 0)).slice(0, 2);
+  const sells = ctx.squad.filter(s => s.e && s.verdicts && s.verdicts.some(v => v[0] === 'SELL?')).sort((a, b) => a.ep - b.ep);
+  const POSL = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' };
+  let replTxt = '';
+  const s0 = sells[0];
+  if (s0 && s0.e) {
+    const cand = DATA.players.filter(p => p.status === 'a' && p.mins >= 90 && p.cost <= ctx.maxFund && p.pos === POSL[s0.pos] && !ctx.squad.some(x => x.e && x.e.n === p.name))
+      .map(p => ({ p, sc: (p.ep_next || 0) * (0.6 + 0.4 * reliab(p)) + (3 - fxAvg3S(p)) * 0.8 }))
+      .sort((a, b) => b.sc - a.sc)[0];
+    replTxt = cand ? '<span class="mrow">🛒 Replace <b>' + esc(s0.e.n) + '</b> (ep ' + s0.ep.toFixed(1) + ') with <b>' + esc(cand.p.name) + '</b> (' + cand.p.team + ', £' + cand.p.cost + 'm, ep ' + cand.p.ep_next + ') — fits your £' + ctx.maxFund.toFixed(1) + 'm budget.</span>'
+      : '<span class="mrow">⚠️ Weakest flagged: <b>' + esc(s0.e.n) + '</b> — no clearly better affordable replacement in that slot right now; don\u2019t force a -4.</span>';
+  } else replTxt = '<span class="mrow">✅ No weak links flagged — squad structure is healthy.</span>';
+  const benchTip = (ctx.benchWaste != null && ctx.benchWaste > 4) ? '<span class="mrow">🧊 Bench waste ' + ctx.benchWaste.toFixed(1) + ' pts — one tidy upgrade beats repeated -4 hits.</span>' : '';
+  return '<b>Personalised suggestions — ' + esc(ctx.entryName) + ' (rank ' + (ctx.rank || 0).toLocaleString() + ')</b><br>'
+    + (cap3.length ? '<span class="mrow">🎯 Captain next GW: <b>' + esc(cap3[0].e.n) + '</b> (cap ' + cap3[0].cap.toFixed(1) + ')' + (cap3[1] ? ' · alt ' + esc(cap3[1].e.n) + ' (' + cap3[1].cap.toFixed(1) + ')' : '') + '.</span>' : '')
+    + replTxt + benchTip
+    + '<span class="mrow">🏆 ' + (window.ML && ML.ready ? 'Mini-league mode active — follow the 🏆 tab risk rules before any hit.' : 'Load your mini league (🏆 tab) and every move gets optimised toward 1st place.') + '</span>'
+    + '<span class="mrow">💡 Ask "who should I captain", "best transfer this week", or a head-to-head like "konsa or tarkowski?" for specifics.</span>';
+}
+
 function askAI(q) {
   const Q = q.toLowerCase();
   const ctx = window.TEAMCTX;
   try { if (typeof eliteAsk === 'function' && DATA.elite && (DATA.elite.elites || []).length) { const er = eliteAsk(q); if (er) return er; } } catch (e) { console.error('[ELITE ask]', e); }
+  const _pair = resolvePair(q);
+  if (_pair && !/^\s*(compare|open in compare)/i.test(Q)) return pairDecision(_pair[0], _pair[1], q);
   const pl = findPlayer(q);
   if (/captain|armband/.test(Q)) {
     if (ctx) {
@@ -745,6 +861,7 @@ function askAI(q) {
     if (!ML.ready) return 'Load your mini league first to see the chip battle vs your rivals.';
     return ALL_CHIPS.map(([k, l]) => `${l}: you ${ML.youChips.includes(k) ? '❌ used' : '✅ hold'} · main rival ${ML.prim && ML.prim.chips.includes(k) ? '❌ used' : '✅ hold'}`).join('<br>') + (ML.youChips.includes('3xc') && ML.prim && ML.prim.chips.includes('3xc') ? '<br>Both hold TC — timing is the weapon.' : '');
   }
+  if (/(suggest|improve|advice|recommend|what should i do|next step|make my team better|how can i improve|any suggestions)/.test(Q)) return suggestAnswer();
   if (pl) return scout(pl);
   return `I can help with: <b>captain</b> picks, <b>sell/buy</b> advice (budget-aware), <b>bench</b> choices, <b>injuries</b>, <b>chips</b>, <b>fixtures</b>, your <b>mini league</b> ("how do I win my mini league?", "should I take a hit?"), any <b>player scout report</b> ("Haaland?"), "best DEF under 6m", or <b>wildcard</b> strategy. ${ctx ? '' : 'Tip: load your team in My Team for personalised answers.'}`;
 }
