@@ -609,12 +609,14 @@ function renderWildcard() {
 // ============ Assistant (data-grounded copilot) ============
 function scout(p) {
   const d = (p.xg_diff || 0);
+  const PP = playerProb(p);
   return `<b>${esc(p.name)}</b> (${p.team}, ${p.pos}, £${p.cost}m, ${p.own}% owned)<br>
   <span class="mrow">📊 ${p.pts} pts · form ${p.form} · ep next ${p.ep_next} · ${p.g}G ${p.a}A in ${p.mins}'</span><br>
   <span class="mrow">🎯 xG ${p.xg} vs ${p.g} goals (${d >= 0 ? '+' : ''}${d.toFixed(1)} → ${d < -0.5 ? 'due a return' : d > 0.8 ? 'overperforming' : 'about right'})</span><br>
   <span class="mrow">📈 ${sparkSVG(p.id, 160, 34) || 'no match history yet'}</span><br>
   <span class="mrow">📅 ${(p.next3 || []).map(f => `${f.opp}(${f.ha})<span class="fdr f${f.afdr ?? f.fdr}" title="form-adjusted ${f.adjv ?? f.fdr} (base ${f.fdr})">${f.afdr ?? f.fdr}</span>`).join(' ')}</span><br>
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
+  <span class="mrow">🎲 P(≥6) ${PP.p6}% · P(≥10) ${PP.p10}% <span class="muted">(chance ≠ prediction — real GW1-3 + pos base rate)</span> · swing ±${PP.sd.toFixed(1)}/GW</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span>`;
 }
 function normName(s) {
@@ -694,6 +696,7 @@ function pairDecision(A, B, q0) {
   let wA = 0, wB = 0;
   for (let i = 0; i < H; i++) { if (projP(A, i) > projP(B, i)) wA++; else if (projP(B, i) > projP(A, i)) wB++; }
   const rA = reliab(A), rB = reliab(B);
+  const PPA = playerProb(A), PPB = playerProb(B);
   const fxA = fxAvgN(A, 5), fxB = fxAvgN(B, 5);
   const g0A = projP(A, 0), g0B = projP(B, 0);
   const maxT = Math.max(tA, tB);
@@ -703,10 +706,11 @@ function pairDecision(A, B, q0) {
       + '<div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><b>' + esc(p.name) + '</b> <span class="team-tag">' + p.team + ' · ' + p.pos + ' · £' + p.cost + 'm</span>'
       + '<span class="team-tag">' + (owns === null ? p.own + '% owned' : owns ? '✅ you own' : '❌ not owned') + '</span></div>'
       + '<div class="muted" style="margin:2px 0">Next 3: ' + (fxBadges(p) || '—') + '</div>'
-      + '<div style="display:flex;justify-content:space-between"><span class="muted">proj next GW</span><b>' + projP(p, 0).toFixed(1) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">xPts next GW <i>(expected)</i></span><b>' + projP(p, 0).toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">5-GW total</span><b>' + t.toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">reliability</span><b>' + Math.round(r * 100) + '%</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/270</b></div>'
+      + ppRows(p)
       + teamDefLine(p)
       + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
       + '</div>';
@@ -719,6 +723,20 @@ function pairDecision(A, B, q0) {
   const leadR = lead === A ? rA : rB, trailR = lead === A ? rB : rA;
   if (trailR > leadR + 0.08) lines.push(esc(trail.name) + '\u2019s returns are more reliable (' + Math.round(trailR * 100) + '% vs ' + Math.round(leadR * 100) + '%) — the edge on ' + esc(lead.name) + ' leans on fixtures, so weigh floor vs ceiling.');
   if (Math.abs(fxA - fxB) > 0.35) lines.push('Fixture run differs: ' + esc((fxA < fxB ? A : B).name) + ' has the easier schedule (avg ' + Math.min(fxA, fxB).toFixed(1) + ' vs ' + Math.max(fxA, fxB).toFixed(1) + ' over 5).');
+  // probability lens (chance ≠ expected points): surface ceiling vs floor when it actually differs
+  const p10D = PPA.p10 - PPB.p10;
+  if (Math.abs(p10D) >= 6) {
+    const ceil = p10D > 0 ? A : B, floor = p10D > 0 ? B : A;
+    const ceilP = Math.max(PPA.p10, PPB.p10), lowP = Math.min(PPA.p10, PPB.p10);
+    const ceil6 = p10D > 0 ? PPA.p6 : PPB.p6, floor6 = p10D > 0 ? PPB.p6 : PPA.p6;
+    lines.push('🎲 Ceiling vs floor: ' + esc(ceil.name) + ' has the bigger haul chance (P(≥10) ' + ceilP + '% vs ' + lowP + '%)'
+      + (floor6 > ceil6 ? ' while ' + esc(floor.name) + ' is the steadier return (P(≥6) ' + floor6 + '% vs ' + ceil6 + '%)' : ' and also posts returns more often (P(≥6) ' + ceil6 + '%)')
+      + ' — chase upside if you are behind, value the floor if you are protecting a lead.');
+  } else if (Math.abs(PPA.p6 - PPB.p6) >= 15) {
+    const h6 = PPA.p6 > PPB.p6 ? A : B;
+    const h = Math.max(PPA.p6, PPB.p6), l = Math.min(PPA.p6, PPB.p6);
+    lines.push('🎲 Return odds: ' + esc(h6.name) + ' posts a ≥6-point return far more often (P(≥6) ' + h + '% vs ' + l + '%) — the projection edge is backed by reliability, not variance.');
+  }
   const loMin = (lead === A ? B : A), hiP = (lead === A ? A : B);
   if (loMin.mins < 200 && hiP.mins - loMin.mins >= 90) {
     const tf = window.TF[loMin.team] || {};
@@ -741,7 +759,7 @@ function pairDecision(A, B, q0) {
     + '<div style="display:flex;gap:18px;flex-wrap:wrap">' + row(A, tA, rA) + row(B, tB, rB) + '</div>'
     + '<p style="margin:10px 0 4px">🤖 <b>Decision: pick ' + esc(lead.name) + '</b> — ' + lines.join(' ') + '</p>'
     + (personal ? '<p class="mrow">' + personal + '</p>' : '')
-    + '<p class="muted" style="margin-top:6px">Projections use the shared form-adjusted model (ep × fixtures × reliability) — estimates, not guarantees. Open ⚖️ Compare for the full 5-GW chart, or ask a follow-up like "but which has better fixtures?".</p>'
+    + '<p class="muted" style="margin-top:6px"><b>xPts</b> = expected points (estimate). <b>P(≥6) / P(≥10)</b> = chance of a return/haul, calibrated from real GW1-' + (DATA.fplmeta && DATA.fplmeta.current_gw ? DATA.fplmeta.current_gw : 3) + ' results (league base rate by position, blended with each player\'s own record) — a probability is not a point prediction. Open ⚖️ Compare for the full 5-GW chart, or ask a follow-up like "but which has better fixtures?".</p>'
     + '</div>';
 }
 function fxAvg3S(p) { return fxAvgN(p, 3); }
@@ -1279,6 +1297,63 @@ const projP = (p, i) => {
   return base * (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1) * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
+// ---- Probability profile (audit P0 #3: expected points ≠ probability) ----
+// xPts (projP) is the point ESTIMATE. These chips answer a different question:
+// "how likely is a return/haul this GW?" They are calibrated from REAL results —
+// every starter's GW1-N points across the player pool give a league base rate by
+// position, blended with the player's OWN real GW1-N record (shrunk, so a 2-3 GW
+// sample never dominates). Every output is a labelled model estimate.
+const PP_MEMO = {};
+const PP_K = 3; // shrinkage weight — own record trusted more as GWs accumulate
+function ppScores(p) { return ((DATA.history || {})[p.id] || []).map(r => r[1] || 0); }
+function ppBaseRates() {
+  if (PP_MEMO.base) return PP_MEMO.base;
+  const st = {}; // starters only (>=60 mins) — best proxy for "actually plays"
+  for (const p of DATA.players) for (const r of (DATA.history || {})[p.id] || []) {
+    if ((r[4] || 0) < 60) continue;
+    const o = st[p.pos] = st[p.pos] || { n: 0, r6: 0, r10: 0, sum: 0, sq: 0 };
+    const pts = r[1] || 0; o.n++; o.sum += pts; o.sq += pts * pts;
+    if (pts >= 6) o.r6++; if (pts >= 10) o.r10++;
+  }
+  PP_MEMO.base = st;
+  return st;
+}
+function playerProb(p, over) {
+  const mins = over && over.mins != null ? over.mins : (p.mins || 0);
+  const status = over && over.status != null ? over.status : (p.status || 'a');
+  const key = p.id + '|' + mins + '|' + status;
+  if (PP_MEMO[key]) return PP_MEMO[key];
+  const scores = ppScores(p);
+  const n = scores.length;
+  const obs6 = scores.filter(x => x >= 6).length, obs10 = scores.filter(x => x >= 10).length;
+  const b = ppBaseRates()[p.pos] || { n: 1, r6: 0, r10: 0, sum: 0, sq: 0 };
+  const prior6 = b.n ? 100 * b.r6 / b.n : 10;
+  const prior10 = b.n ? 100 * b.r10 / b.n : 3;
+  const w = n / (n + PP_K);
+  let p6 = n ? w * (100 * obs6 / n) + (1 - w) * prior6 : prior6;
+  let p10 = n ? w * (100 * obs10 / n) + (1 - w) * prior10 : prior10;
+  // minutes gate: a benched player cannot return; scale both chances down
+  const minProb = status !== 'a' ? 0.3 : Math.min(1, 0.5 + 0.5 * (mins / 270));
+  const gate = 0.25 + 0.75 * minProb;
+  p6 = Math.max(1, Math.min(85, Math.round(p6 * gate)));
+  p10 = Math.max(1, Math.min(60, Math.round(p10 * gate)));
+  const avg = n ? scores.reduce((a, x) => a + x, 0) / n : 0;
+  let sd = n > 1 ? Math.sqrt(scores.reduce((s, x) => s + (x - avg) * (x - avg), 0) / (n - 1)) : 0;
+  if (n < 2) sd = b.n ? Math.sqrt(Math.max(0, b.sq / b.n - (b.sum / b.n) * (b.sum / b.n))) : 3;
+  sd = Math.max(1.5, Math.min(8, Math.round(sd * 10) / 10)); // typical per-GW swing
+  const best = n ? Math.max.apply(null, scores) : 0;
+  PP_MEMO[key] = { n, p6, p10, sd, best, obs6, obs10, prior6: Math.round(prior6), prior10: Math.round(prior10) };
+  return PP_MEMO[key];
+}
+// two labelled chance rows used inside H2H / Compare cards
+function ppRows(p) {
+  const P = playerProb(p);
+  const c6 = P.p6 >= 40 ? 'var(--green)' : P.p6 >= 20 ? 'var(--amber)' : 'var(--red)';
+  const c10 = P.p10 >= 12 ? 'var(--green)' : P.p10 >= 5 ? 'var(--amber)' : 'var(--red)';
+  return '<div style="display:flex;justify-content:space-between"><span class="muted" title="chance of a 6+ point return this GW — own real GW1-3 record blended with the league base rate for his position">P(≥6) <i>chance</i></span><b style="color:' + c6 + '">' + P.p6 + '%</b></div>'
+    + '<div style="display:flex;justify-content:space-between"><span class="muted" title="chance of a 10+ point haul this GW">P(≥10) <i>chance</i></span><b style="color:' + c10 + '">' + P.p10 + '%</b></div>'
+    + '<div style="display:flex;justify-content:space-between"><span class="muted" title="typical per-GW swing from his real GW1-3 points">swing ±/GW</span><b>' + P.sd.toFixed(1) + '</b></div>';
+}
 function startersAt(squad, i) {
   return bestXI(squad, p => projP(p, i)) || squad.slice(0, 11);
 }
@@ -1491,6 +1566,7 @@ function renderCompare() {
       <div class="gapline">${p.team} · £${p.cost}m · ${p.own}% owned · team form #${formRank(p)}</div>
       <div class="gapline">${p.pts} pts · ${p.g}G ${p.a}A · xG ${p.xg} xA ${p.xa} · ${p.mins}&prime;</div>
       <div class="gapline">Reliability <b>${Math.round(reliab(p) * 100)}%</b> · next-5 <b style="color:${CMP_COLORS[k]}">${totals[k].toFixed(1)}</b> · GW wins <b>${wins[k]}/5</b></div>
+      <div class="gapline">🎲 P(≥6) <b style="color:${playerProb(p).p6 >= 40 ? 'var(--green)' : playerProb(p).p6 >= 20 ? 'var(--amber)' : 'var(--red)'}">${playerProb(p).p6}%</b> · P(≥10) <b>${playerProb(p).p10}%</b> · swing ±${playerProb(p).sd.toFixed(1)}/GW <span class="tk-opp">(chance ≠ xPts)</span></div>
       <div style="margin-top:6px">${sparkSVG(p.id, 220, 36)}</div>
     </div>`).join('');
   const gwRows = Array.from({ length: H }, (_, i) => {
@@ -1525,7 +1601,8 @@ function renderCompare() {
     <div class="card" style="grid-column:1/-1"><h2>📊 Head-to-head numbers</h2><div class="cmp-metrics">${bars}</div></div>
     <div class="card" style="grid-column:1/-1"><h2>🤖 Verdict</h2>
     <p><b style="color:${CMP_COLORS[order[0]]}">${esc(a.name)}</b> by <b>+${edge.toFixed(1)}</b> projected pts over the next 5 (${totals[order[0]].toFixed(1)} vs ${totals[order[1]].toFixed(1)}), winning <b>${wins[order[0]]}/5</b> gameweeks on fixtures × form × reliability.</p>
-    <p class="muted">${reliab(a) >= reliab(b) ? `${esc(a.name)}'s returns are also more reliable (${Math.round(reliab(a) * 100)}% vs ${Math.round(reliab(b) * 100)}%) — underlying xGI backs the output.` : `Note: ${esc(b.name)} is the more reliable pick (${Math.round(reliab(b) * 100)}% vs ${Math.round(reliab(a) * 100)}%) — ${esc(a.name)}'s edge leans on fixtures; weigh floor vs ceiling.`}${ML.ready ? ` Mini-league: ${ML.ownCount(a)}/${ML.n} rivals own ${esc(a.name)} vs ${ML.ownCount(b)}/${ML.n} for ${esc(b.name)}.` : ''}</p></div>`;
+    <p class="muted">${reliab(a) >= reliab(b) ? `${esc(a.name)}'s returns are also more reliable (${Math.round(reliab(a) * 100)}% vs ${Math.round(reliab(b) * 100)}%) — underlying xGI backs the output.` : `Note: ${esc(b.name)} is the more reliable pick (${Math.round(reliab(b) * 100)}% vs ${Math.round(reliab(a) * 100)}%) — ${esc(a.name)}'s edge leans on fixtures; weigh floor vs ceiling.`}${ML.ready ? ` Mini-league: ${ML.ownCount(a)}/${ML.n} rivals own ${esc(a.name)} vs ${ML.ownCount(b)}/${ML.n} for ${esc(b.name)}.` : ''}</p>
+    <p class="muted">P(≥6) / P(≥10) chips answer "how likely is a return/haul?" — calibrated from real GW1-${DATA.fplmeta ? DATA.fplmeta.current_gw : 3} results (league base rate by position blended with each player's own record). A probability is not a point prediction.</p></div>`;
 }
 
 
