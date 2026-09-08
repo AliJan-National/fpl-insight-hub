@@ -37,7 +37,7 @@ function renderAll() {
   // v9: one failing tab must never break the buttons wired below or the other tabs
   const safe = (fn, name) => { try { fn(); } catch (e) { console.error('[renderAll]', name, e); } };
   safe(renderLeague, 'league'); safe(renderTopScorers, 'topScorers'); safe(renderResults, 'results');
-  safe(renderRadar, 'radar'); safe(renderPlayers, 'players'); safe(renderFixtures, 'fixtures'); safe(renderNews, 'news');
+  safe(renderRadar, 'radar'); safe(renderPlayers, 'players'); safe(renderFixtures, 'fixtures'); safe(renderOsm, 'osm'); safe(renderNews, 'news');
   $('#playerNames').innerHTML = DATA.players.map(p => `<option value="${esc(p.name)}">`).join('');
   $('#cmpGo').onclick = () => { try { renderCompare(); } catch (e) { console.error('[compare]', e); $('#cmpOut').innerHTML = '<p class="hint">⚠️ Compare failed: ' + esc(e.message) + '</p>'; } };
   $('#planSolve').onclick = () => { try { solvePlan(); } catch (e) { console.error('[solvePlan]', e); $('#planOut').innerHTML = '<div class="card"><p class="hint">⚠️ Solver error: <b>' + esc(e.message) + '</b>. Reload My Team and try again.</p></div>'; } };
@@ -479,6 +479,74 @@ function renderPlayers() {
   });
 }
 
+// ============ ⚔️ OPPONENT-STRENGTH MODEL (audit roadmap #11) ============
+// Real FDR: instead of trusting the coarse 1-5 official difficulty alone, this
+// derives each team's true attacking & defensive strength from REAL GW1-3
+// results (official xG for/against in DATA.results, ~30 matches). Ratings are
+// shrunken toward the league mean because 3 matches is a small sample — the
+// model is honest that it grows stronger every gameweek. Two lenses:
+//   ATTACKERS  face the opponent's DEFENCE  (xGA per match — leakier = easier)
+//   DEFENDERS  face the opponent's ATTACK   (xG per match — stronger = harder)
+function osmMemo() { if (!window.OSM) window.OSM = {}; return window.OSM; }
+function osmBuild() {
+  const mem = osmMemo();
+  if (mem.rows) return mem.rows;
+  const agg = {};
+  (DATA.results || []).forEach(m => {
+    [['home', m.hxg, m.axg], ['away', m.axg, m.hxg]].forEach(([side, xgf, xga]) => {
+      const t = m[side]; if (!t) return;
+      const o = agg[t] = agg[t] || { n: 0, xgf: 0, xga: 0 };
+      o.n++; o.xgf += xgf || 0; o.xga += xga || 0;
+    });
+  });
+  const names = Object.keys(agg);
+  if (!names.length) { mem.rows = []; return mem.rows; }
+  const sum = (k) => names.reduce((a, t) => a + (agg[t][k] / agg[t].n), 0);
+  const meanXgf = sum('xgf') / names.length, meanXga = sum('xga') / names.length;
+  const rows = names.map(t => {
+    const o = agg[t], w = o.n / (o.n + 2); // shrinkage: 3 GWs -> 60% real, 40% league
+    const att = w * (o.xgf / o.n) + (1 - w) * meanXgf;
+    const xga = w * (o.xga / o.n) + (1 - w) * meanXga;
+    const aM = att / meanXgf, leak = xga / meanXga;
+    const atk = aM >= 1.5 ? 'elite attack' : aM >= 1.15 ? 'strong attack' : aM >= 0.85 ? 'mid attack' : 'weak attack';
+    const def = leak <= 0.75 ? 'elite defence' : leak <= 1 ? 'solid defence' : leak <= 1.25 ? 'shaky defence' : 'leaky defence';
+    return { short: t, n: o.n, att: Math.round(att * 100) / 100, xga: Math.round(xga * 100) / 100,
+      atk, def, leak: Math.round(leak * 100) / 100, aM: Math.round(aM * 100) / 100 };
+  });
+  rows.sort((a, b) => b.att - a.att);
+  rows.forEach((r, i) => { r.atkRank = i + 1; });
+  rows.slice().sort((a, b) => a.xga - b.xga).forEach((r, i) => { r.defRank = i + 1; });
+  mem.rows = rows; mem.meanXgf = meanXgf; mem.meanXga = meanXga;
+  return rows;
+}
+function osmByShort() {
+  const mem = osmMemo(); if (mem.map) return mem.map;
+  const m = {}; osmBuild().forEach(r => { m[r.short] = r; }); mem.map = m; return m;
+}
+function osmOppLens(oppShort, pos) {
+  const r = osmByShort()[oppShort];
+  if (!r) return '';
+  const isDef = pos === 'DEF' || pos === 'GK';
+  return isDef
+    ? `<span class="tk-opp" title="real GW1-3 opponent strength model">⚔️ opp attack ${r.att}/m (#${r.atkRank}) — ${r.atk}</span>`
+    : `<span class="tk-opp" title="real GW1-3 opponent strength model">⚔️ opp defence xGA ${r.xga}/m (#${r.defRank}) — ${r.def}</span>`;
+}
+function osmCardHtml() {
+  const rows = osmBuild();
+  if (!rows.length) return '';
+  const mem = osmMemo();
+  const tr = rows.slice().sort((a, b) => a.defRank - b.defRank).map(r => {
+    const col = r.defRank <= 5 ? 'var(--green)' : r.defRank <= 10 ? 'var(--amber)' : 'var(--red)';
+    return `<tr><td><b>${esc(r.short)}</b></td><td class="num">${r.att}</td><td class="num">#${r.atkRank}</td>
+      <td class="num" style="color:${col}">${r.xga}</td><td class="num">#${r.defRank}</td>
+      <td><span class="xb" style="--c:${r.defRank <= 5 ? 'var(--green)' : r.defRank <= 10 ? 'var(--amber)' : 'var(--red)'}">${r.def}</span></td></tr>`;
+  }).join('');
+  return `<div class="card" style="grid-column:1/-1"><h2>⚔️ Opponent-strength model <span class="muted">— from real GW1-3 xG (${rows.length} teams)</span></h2>
+    <p class="muted" style="margin:0 0 6px">Attack = <b>xG created per match</b> (real). Defence = <b>xG conceded per match</b> (lower is better). Ratings are shrunk to the league mean over a 3-match sample — they sharpen every week. When picking an <b>attacker</b>, target teams with a weak defence below; when picking a <b>defender/GK</b>, favour facing weak attacks.</p>
+    <div style="overflow-x:auto"><table class="data compact"><tr><th>Team</th><th class="num">Attack<br>xG/m</th><th class="num">Atk<br>rank</th><th class="num">Defence<br>xGA/m</th><th class="num">Def<br>rank</th><th>Defence grade</th></tr>${tr}</table></div>
+    <p class="muted" style="margin:6px 0 0">Model from official match xG · GW1-3 · sample n=3/team — a guide, not a law. The old form-adjusted FDR is still shown on fixtures; this is the real-strength view behind it.</p></div>`;
+}
+
 function renderFixtures() {
   const t = DATA.ticker;
   const past = t.past_gws, fut = t.future_gws;
@@ -500,6 +568,11 @@ function renderFixtures() {
       }).join('') + '</tr>';
   });
   $('#tickerTable').innerHTML = html;
+}
+
+function renderOsm() {
+  const el = $('#osmWrap'); if (!el) return;
+  try { const h2 = osmCardHtml(); el.innerHTML = h2 || ''; } catch (e) { console.error('[osm]', e); el.innerHTML = ''; }
 }
 
 function renderNews() {
@@ -619,6 +692,7 @@ function scout(p) {
   <span class="mrow">🏆 team form: #${formRank(p)} of 20 (${(window.TF[p.team] || {}).ppg ?? '–'} ppg, xG diff ${( (window.TF[p.team] || {}).xgd ?? 0) > 0 ? '+' : ''}${(window.TF[p.team] || {}).xgd ?? 0}/game — as ranked in the Fixtures ticker)</span><br>
   <span class="mrow">🎲 P(≥6) ${PP.p6}% · P(≥10) ${PP.p10}% <span class="muted">(chance ≠ prediction — real GW1-3 + pos base rate)</span> · swing ±${PP.sd.toFixed(1)}/GW</span><br>
   <span class="mrow">💷 price: ${p.price_dir === 'rise' ? '📈 rising' : p.price_dir === 'fall' ? '📉 falling' : '➖ stable'}</span><br>
+  ${(() => { try { const o0 = (p.next3 || [])[0]; if (o0 && o0.opp && typeof osmOppLens === 'function') return '<span class="mrow">' + osmOppLens(o0.opp, p.pos) + '</span><br>'; return ''; } catch (e) { return ''; } })()}
   <span class="mrow">🪑 starts ~${Math.round(PS * 100)}% · <span style="color:${SL.c}">${SL.txt}</span> <span class="muted">(selection model — real GW1-3 starts + official status)</span></span>
   <span class="mrow">${distBar(p)}</span>`;
 }
@@ -804,6 +878,28 @@ function suggestAnswer() {
     + '<span class="mrow">💡 Ask "who should I captain", "best transfer this week", or a head-to-head like "konsa or tarkowski?" for specifics.</span>';
 }
 
+function osmAsk(q) {
+  const rows = osmBuild();
+  if (!rows.length) return '';
+  const Q = String(q || '').toLowerCase();
+  const escq = x => esc(x);
+  const row = r => `<span class="mrow">• <b>${escq(r.short)}</b> <span class="muted">xG ${r.att}/m (#${r.atkRank} atk) · xGA ${r.xga}/m (#${r.defRank} def) · ${r.def}</span></span>`;
+  const by = (fn) => rows.slice().sort(fn);
+  if (/weak|leak|worst|easiest|target|porous/.test(Q) && /defen|conced|defen|against/.test(Q)) {
+    const d = by((a, b) => b.xga - a.xga);
+    return `⚔️ Leakiest defences to attack (real GW1-3 xG conceded per match):<br>${d.slice(0, 5).map(row).join('')}<br><span class="muted">Attackers facing these teams have the friendliest matchups on real data — but each still needs a minutes + fixture sanity check.</span>`;
+  }
+  if (/best|strong|solid|elite/.test(Q) && /defen|defens|def/.test(Q)) {
+    const d = by((a, b) => a.xga - b.xga);
+    return `🛡️ Best real defences (fewest xG conceded per match, GW1-3):<br>${d.slice(0, 5).map(row).join('')}<br><span class="muted">Good sources of DEF/GK clean sheets — but defenders only score when they start (see selection model).</span>`;
+  }
+  if (/best|strong|elite|top/.test(Q) && /attack|scor|creat/.test(Q)) {
+    const d = by((a, b) => b.att - a.att);
+    return `⚔️ Strongest real attacks (most xG created per match, GW1-3):<br>${d.slice(0, 5).map(row).join('')}<br><span class="muted">Attacking assets from these teams have the best real-creation base to build on.</span>`;
+  }
+  return '';
+}
+
 function askAI(q) {
   const Q = q.toLowerCase();
   const ctx = window.TEAMCTX;
@@ -811,6 +907,9 @@ function askAI(q) {
   const _pair = resolvePair(q);
   if (_pair && !/^\s*(compare|open in compare)/i.test(Q)) return pairDecision(_pair[0], _pair[1], q);
   const pl = findPlayer(q);
+  if (!pl && /(defence|defense|def|attack|strength|conced)/.test(Q) && /(best|strong|weak|worst|easiest|hardest|elite|leak|top|solid|porous)/.test(Q)) {
+    try { const oa = typeof osmAsk === 'function' ? osmAsk(Q) : ''; if (oa) return oa; } catch (e) { console.error('[osmAsk]', e); }
+  }
   if (/captain|armband/.test(Q)) {
     if (ctx) {
       const ranked = ctx.squad.map(s => ({ s, c: s.cap })).sort((a, b) => b.c - a.c).slice(0, 3);
