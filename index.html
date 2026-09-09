@@ -81,6 +81,14 @@
     </div>
     <div id="teamDetail" style="display:none">
       <div class="card" style="margin-top:16px"><h2 class="green">🧠 Projected Best XI — Next Gameweek</h2><div id="xiSummary"></div></div>
+<div class="card" style="margin-top:16px"><h2>📈 Your weekly score — real vs model projection</h2>
+      <div id="teamMom"></div><p class="hint" id="momHint" style="margin-top:4px"></p></div>
+      <div class="grid2" style="margin-top:16px">
+        <div class="card"><h2>🌡️ Next-5 fixture difficulty <span class="muted">(adjusted)</span></h2>
+          <div id="squadHeat"></div><p class="hint" id="heatHint" style="margin-top:4px"></p></div>
+        <div class="card"><h2>🧩 Squad shape — where next-GW xP sits</h2>
+          <div id="posStack"></div></div>
+      </div>
       <div class="grid2" style="margin-top:16px">
         <div class="card"><h2>Your Squad &amp; Next Fixtures</h2><div id="squadList"></div></div>
         <div>
@@ -295,6 +303,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 </body>
 </html>

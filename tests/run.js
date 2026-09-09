@@ -101,6 +101,25 @@ const worstF = DATA.players.filter(p => p.pos === 'FWD' && p.status === 'a' && p
 A(worstF.some(p => S.sellUpgrade(p, 2, new Set())), 'SELL honesty: a bottom-output FWD gets a concrete upgrade (SELL? only ever appears with one)');
 A(S.sellInfo(haaH, { bank: 2, ownedIds: new Set(), isCaptain: true }).tag !== 'SELL?', 'SELL honesty: the captain is never pushed to sell');
 
+// ---------- 5c. My Team charts (v33): pure builders, deterministic, no NaN ----------
+const CH = slice('// ============ 🎨 MY TEAM CHARTS', 'function renderTeam(');
+const Mc = (0, eval)('(function(){ ' + 'globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); ' + CH + '\nreturn { teamMomChart, squadHeatHtml, posStackHtml }; })()');
+const momR = [{ gw: 1, v: 52 }, { gw: 2, v: 61 }, { gw: 3, v: 44 }];
+const momP = [4, 5, 6, 7, 8].map(gw => ({ gw, v: 55 + gw }));
+const momS = Mc.teamMomChart(momR, momP);
+A((momS.match(/<rect /g) || []).length === 3 && (momS.match(/<circle /g) || []).length === 5 && !/NaN/.test(momS), 'team chart: real bars + 5 projection markers, no NaN');
+A(Mc.teamMomChart([], []) === '', 'team chart degrades gracefully when empty');
+const fakeRows = [
+  { r: { position: 1, element: 1, is_captain: true }, e: { n: 'Haaland' }, pos: 4, ep: 6.9, fxs: [1,2,3,4,5].map(g => ({ opp: 'MUN', ha: 'A', afdr: g, gw: 3 + g })) },
+  { r: { position: 12, element: 2, is_captain: false }, e: { n: 'Bogle' }, pos: 2, ep: 1.2, fxs: [] },
+];
+const heatS = Mc.squadHeatHtml(fakeRows, 3);
+A(/GW4/.test(heatS) && /GW8/.test(heatS) && (heatS.match(/difficulty \d\/5/g) || []).length === 5, 'fixture heatmap: 5 GW columns, one cell per real fixture, missing degrade');
+A(/👑/.test(heatS), 'heatmap marks the captain');
+const posS = Mc.posStackHtml([{ pos: 1, ep: 4 }, { pos: 3, ep: 7 }], [{ pos: 2, ep: 1 }]);
+A(/goalkeepers/.test(posS) && /midfield/.test(posS) && /Bench/.test(posS) && !/NaN/.test(posS), 'squad-shape bar names lines + bench, no NaN');
+A(Mc.posStackHtml([], []) === '', 'squad-shape bar empty when no squad');
+
 // ---------- 6. xP forecast ledger: armed now, measured when a recorded GW lands (M3) ----------
 const store = {};
 global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };

@@ -177,6 +177,113 @@ function sellInfo(cur, o) {
   if (!(o && o.isCaptain) && runAvg3Of(cur) >= TOUGH_RUN_MIN) return { upg: null, tag: 'tough run' };
   return { upg: null, tag: null };
 }
+// ============ 🎨 MY TEAM CHARTS (v33) ============
+// Pure presentational builders — all data is passed in from renderTeam so every
+// chart is deterministic and unit-testable. Real figures are official history;
+// projections come from the same forecast spine, labelled as model estimates.
+
+// (1) Your weekly score: real bars + model projection line across next 5 GWs
+function teamMomChart(real, proj) {
+  if ((!real || !real.length) && (!proj || !proj.length)) return '';
+  const pts = real.concat(proj).map(p => p.v).concat([0]);
+  const rawMax = Math.max.apply(null, pts);
+  const step = rawMax <= 60 ? 10 : rawMax <= 120 ? 20 : 50;
+  const yMax = Math.max(step, Math.ceil(rawMax / step) * step);
+  const W = 760, H = 258, L = 46, R = 14, T = 30, B = 50;
+  const n = real.length + proj.length, band = (W - L - R) / Math.max(n, 1);
+  const X = i => L + band * (i + 0.5);
+  const Y = v => T + (H - T - B) * (1 - v / yMax);
+  let g = '';
+  for (let s = 0; s <= yMax; s += step) {
+    const y = Y(s);
+    g += `<line x1="${L}" y1="${y.toFixed(1)}" x2="${W - R}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,${s === 0 ? 0.25 : 0.08})" stroke-width="1"/>`;
+    g += `<text x="${L - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#8a93a6">${s}</text>`;
+  }
+  let i = 0;
+  real.forEach(p => {
+    const x = X(i), y = Y(p.v), h = (H - T - B) - (y - T);
+    g += `<rect x="${(x - band * 0.34).toFixed(1)}" y="${y.toFixed(1)}" width="${(band * 0.68).toFixed(1)}" height="${Math.max(1.5, h).toFixed(1)}" rx="4" fill="#4dc3ff" opacity="0.9"><title>GW${p.gw}: real ${p.v} pts</title></rect>`;
+    g += `<text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" text-anchor="middle" font-size="11" fill="#cfe3ff" font-weight="700">${Math.round(p.v)}</text>`;
+    i++;
+  });
+  if (real.length && proj.length) {
+    const sx = L + band * (real.length - 0.5);
+    g += `<line x1="${sx.toFixed(1)}" y1="${T}" x2="${sx.toFixed(1)}" y2="${H - B}" stroke="rgba(255,209,102,.55)" stroke-dasharray="4 4"/>`;
+  }
+  if (proj.length) {
+    const coords = proj.map((p, k) => { const x = L + band * (real.length + k + 0.5); return { x, y: Y(p.v), p }; });
+    const pts = coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+    g += `<polyline points="${pts}" fill="none" stroke="#ffd166" stroke-width="2.5" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    coords.forEach(c => {
+      g += `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="4" fill="#0d1117" stroke="#ffd166" stroke-width="2"><title>GW${c.p.gw}: model ~${c.p.v.toFixed(1)} pts</title></circle>`;
+      g += `<text x="${c.x.toFixed(1)}" y="${(c.y - 9).toFixed(1)}" text-anchor="middle" font-size="11" fill="#ffe9a8">${c.p.v.toFixed(1)}</text>`;
+    });
+  }
+  real.forEach((p, k) => { const x = X(k); g += `<text x="${x.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="#8a93a6">GW${p.gw}</text>`; });
+  proj.forEach((p, k) => { const x = X(real.length + k); g += `<text x="${x.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="#ffe9a8">GW${p.gw}</text>`; });
+  g += `<text x="${L}" y="16" font-size="11" fill="#cfe3ff">■ real score</text>`;
+  if (proj.length) g += `<text x="${L + 118}" y="16" font-size="11" fill="#ffe9a8">┄ model projection</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img"><title>Your weekly score: real (bars) vs model projection (dashed line)</title>${g}</svg>`;
+}
+
+// (2) Next-5 fixture difficulty heat map — one row per squad player
+function squadHeatHtml(squad, picksGw) {
+  if (!squad || !squad.length) return '';
+  const cur = picksGw || ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3);
+  const first = cur + 1, K = 5;
+  const cols = ['#166a43', '#2a7d52', '#b98530', '#c0652c', '#a3312f'];   // adjFDR 1..5
+  const rows = squad.slice().sort((a, b) => {
+    const ab = a.r && a.r.position <= 11 ? 0 : 1, bb = b.r && b.r.position <= 11 ? 0 : 1;
+    return ab !== bb ? ab - bb : (a.r ? a.r.position : 0) - (b.r ? b.r.position : 0);
+  });
+  const head = `<span style="display:inline-block;min-width:116px;font-size:12px;color:#8a93a6">player</span>` +
+    Array.from({ length: K }, (_, k) => `<span style="display:inline-block;min-width:96px;font-size:11px;color:#8a93a6;text-align:center">GW${first + k}</span>`).join('');
+  const body = rows.map(s => {
+    const e = s.e || {};
+    const bench = s.r ? s.r.position > 11 : false;
+    const cap = s.r && s.r.is_captain ? ' 👑' : '';
+    const nm = esc(e.n || ('#' + (s.r ? s.r.element : '?')));
+    const cells = [];
+    for (let k = 0; k < K; k++) {
+      const f = (s.fxs || [])[k];
+      if (!f) { cells.push('<span style="display:inline-block;min-width:96px;text-align:center;font-size:11px;color:#5a6a85">—</span>'); continue; }
+      const a = Math.max(1, Math.min(5, Math.round(f.afdr ?? f.fdr ?? 3)));
+      const bg = cols[a - 1];
+      cells.push(`<span title="GW${first + k}: ${f.opp} (${f.ha === 'H' ? 'home' : 'away'}) · difficulty ${a}/5" style="display:inline-block;min-width:96px;margin:1px 0;background:${bg};color:#fff;border-radius:6px;padding:2px 6px;font-size:11px;text-align:center;box-sizing:border-box;opacity:${bench ? 0.5 : 1}">${esc(f.opp)} <i style="font-style:normal;opacity:.85">${f.ha === 'H' ? 'H' : 'A'}</i> <b>${a}</b></span>`);
+    }
+    const nmSpan = `<span style="display:inline-block;min-width:116px;font-size:12px;opacity:${bench ? 0.55 : 1}">${nm}${cap}${bench ? ' <span class="xb" style="--c:var(--amber)">B</span>' : ''}</span>`;
+    return `<div style="margin:1px 0">${nmSpan}${cells.join('')}</div>`;
+  }).join('');
+  const legend = `<span style="font-size:10px;color:#8a93a6">1 easy</span> ` +
+    [1, 2, 3, 4, 5].map(a => `<span style="display:inline-block;width:14px;height:10px;background:${cols[a - 1]};border-radius:3px;margin:0 1px"></span>`).join('') +
+    `<span style="font-size:10px;color:#8a93a6"> 5 hard</span>`;
+  return `<div>${head}<br>${body}</div><div style="margin-top:6px">${legend}</div>`;
+}
+
+// (3) Squad shape — one stacked bar of where the next-GW xP sits, by line
+function posStackHtml(xi, bench) {
+  if ((!xi || !xi.length) && (!bench || !bench.length)) return '';
+  const orders = ['GK', 'DEF', 'MID', 'FWD'];
+  const names = { GK: 'goalkeepers', DEF: 'defence', MID: 'midfield', FWD: 'attack' };
+  const colors = { GK: '#7a8bb0', DEF: '#4dc3ff', MID: '#00e28a', FWD: '#ffd166' };
+  const pn = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' };
+  const tot = {}, cnt = {};
+  (xi || []).forEach(s => { const k = pn[s.pos] || 'MID'; tot[k] = (tot[k] || 0) + (s.ep || 0); cnt[k] = (cnt[k] || 0) + 1; });
+  const bTot = (bench || []).reduce((a, s) => a + (s.ep || 0), 0);
+  const allTot = orders.reduce((a, k) => a + (tot[k] || 0), 0);
+  const maxTot = Math.max(allTot, 1);
+  let segs = '';
+  orders.forEach(k => {
+    const t = tot[k] || 0; if (t <= 0.005) return;
+    const w = Math.max(2.2, t / maxTot * 100);
+    segs += `<div title="${names[k]} (${cnt[k] || 0} starters): ${t.toFixed(1)} xP" style="display:inline-block;height:26px;width:${w.toFixed(1)}%;min-width:${t > 0.5 ? 14 : 6}px;background:${colors[k]};opacity:.88;vertical-align:bottom;border-radius:3px 0 0 3px"></div>`;
+  });
+  const legend = orders.map(k => `<span style="font-size:11px;color:#cfd6e4"><i style="background:${colors[k]};display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px"></i>${names[k]} <b>${(tot[k] || 0).toFixed(1)}</b></span>`).join('');
+  const benchNote = bench && bench.length
+    ? `<p class="muted" style="margin-top:8px;margin-bottom:0">Bench (${bench.length} players) holds <b>${bTot.toFixed(1)} xP</b> — ${bTot >= 4 ? '<span style="color:var(--amber)">that is dead money this week; one tidy upgrade beats repeated -4 hits.</span>' : 'decent cover if someone misses out.'}</p>` : '';
+  return `<div style="width:100%;background:rgba(255,255,255,.05);border-radius:6px;overflow:hidden;display:flex">${segs}<div style="flex:1"></div></div><div style="margin-top:7px;display:flex;gap:14px;flex-wrap:wrap">${legend}</div>${benchNote}`;
+}
+
 function renderTeam(ids, entry, hist, picks, picksGw) {
   // compact catalog: elements by id, teams by FPL team id
   const elById = ids.elements;
@@ -422,6 +529,38 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   }
   if (chipsLeft === 0) advice += `<div class="advice">All chips used — pure transfers from here!</div>`;
   $('#chipAdvice').innerHTML = advice;
+
+  // ---- 🎨 v33 charts (pure builders; guarded so a chart failure never breaks My Team) ----
+  try {
+    if (typeof teamMomChart === 'function' && typeof projP === 'function' && typeof bestXI === 'function') {
+      const catSquad = squad.map(s => catMap[s.r.element]).filter(Boolean);
+      const realSeries = (hist.current || []).filter(e => e && e.event && e.event <= picksGw)
+        .map(e => ({ gw: e.event, v: Math.round((e.points || 0) * 10) / 10 }))
+        .sort((a, b) => a.gw - b.gw);
+      const projSeries = [];
+      if (catSquad.length) {
+        for (let k = 0; k < 5; k++) {
+          const xiK = bestXI(catSquad, p2 => projP(p2, k)) || catSquad.slice(0, 11);
+          let tot = 0; xiK.forEach(p2 => { tot += projP(p2, k); });
+          const capV = xiK.length ? Math.max.apply(null, xiK.map(p2 => projP(p2, k))) : 0;
+          projSeries.push({ gw: picksGw + 1 + k, v: Math.round((tot + capV) * 10) / 10 });
+        }
+      }
+      const momEl = $('#teamMom'); if (momEl) momEl.innerHTML = teamMomChart(realSeries, projSeries);
+      const momH = $('#momHint');
+      if (momH) momH.textContent = realSeries.length
+        ? 'Bars = your real weekly score (official entry history). Dashed line = model best-XI + captain projection (next 5 GWs, labelled estimate).'
+        : 'Real bars appear once your entry history loads; the dashed line is the model best-XI + captain projection for the next 5 GWs (labelled estimate).';
+    }
+  } catch (e) { console.error('[teamMom]', e); }
+  try {
+    const heatEl = $('#squadHeat'); if (heatEl && typeof squadHeatHtml === 'function') heatEl.innerHTML = squadHeatHtml(squad, picksGw);
+    const heatH = $('#heatHint');
+    if (heatH) heatH.textContent = 'Rows: your projected starters first, bench dimmed (B). Cells coloured by adjusted difficulty 1–5 — your best transfer/bench windows at a glance.';
+  } catch (e) { console.error('[squadHeat]', e); }
+  try {
+    const posEl = $('#posStack'); if (posEl && typeof posStackHtml === 'function') posEl.innerHTML = posStackHtml(xi, bench);
+  } catch (e) { console.error('[posStack]', e); }
 
   // ---- hand context to the Assistant ----
   window.TEAMCTX = {
