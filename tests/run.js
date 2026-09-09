@@ -136,6 +136,48 @@ DATA.fplmeta.current_gw = g;
 const b1 = LX.fxBench();
 DATA.fplmeta.current_gw = saveC; DATA.history = saveH;
 A(b1.n === 40 && b1.model && b1.ep && isFinite(b1.model.mae) && isFinite(b1.ep.mae) && b1.model.r != null, 'benchmark measures model vs official ep once a recorded GW resolves (n=' + b1.n + ')');
+// ---------- 5d. Team Lab (v34): real swap maths, budget lock, alt chart line ----------
+global.window.NEXT_BY_CODE = DATA.fplmeta.fixtures_by_code || {};
+global.window.NEXT3_BY_CODE = DATA.fplmeta.next3_by_code || {};
+if (!global.document) {
+  const mkD = () => ({ innerHTML: '', textContent: '', value: '', style: {}, onclick: null, onchange: null,
+    dataset: {}, classList: { add() {}, remove() {}, contains: () => false }, addEventListener: () => {}, click: () => {} });
+  const dcache = {};
+  global.document = { querySelector: sel => { const k = String(sel).replace(/^#/, ''); if (!dcache[k]) dcache[k] = mkD(); return dcache[k]; }, querySelectorAll: () => [] };
+  global.$$ = () => [];
+}
+global.fetch = () => new Promise(() => {});
+(0, eval)(app + '\nDATA = global.DATA;\nglobalThis.__L2 = { labUniverse, labCompute, labCandidateList, teamMomChart, labFxsOf };');
+const L2 = globalThis.__L2;
+const ids2 = api('fplids.json');
+const univ2 = L2.labUniverse(ids2);
+A(univ2.length === Object.keys(ids2.elements).length && univ2.every(u => u.cost > 0 && u.posL), 'Team Lab universe covers every element with real prices/positions');
+const act2 = u => u.status === 'a' && u.mins >= 90;
+const pickLow2 = pos => univ2.filter(u => u.posL === pos && act2(u)).sort((a, b) => a.cost - b.cost || b.ep - a.ep);
+const curIds2 = [...pickLow2('GK').slice(0, 2), ...pickLow2('DEF').slice(0, 5), ...pickLow2('MID').slice(0, 5), ...pickLow2('FWD').slice(0, 3)].map(u => u.id);
+const hist2 = { current: [{ event: 1, points: 55 }, { event: 2, points: 61 }, { event: 3, points: 49 }] };
+const R0 = L2.labCompute(ids2, curIds2, curIds2, 3, 1.0, hist2);
+A(R0.edits === 0 && R0.hits === 0 && R0.d0 === 0 && R0.xiCur.length === 11, 'Team Lab idle: zero edits/delta, legal 11-man best XI');
+const weak2 = [...R0.xiCur].sort((a, b) => (a._ep ?? 0) - (b._ep ?? 0))[0];
+const slot2 = curIds2.indexOf(weak2.id);
+const Lw2 = L2.labCandidateList(R0.byId, curIds2, curIds2, 1.0, slot2, 60);
+const top2 = Lw2.aff[0];
+const newIds2 = curIds2.map((id, i) => (i === slot2 ? top2.id : id));
+const R1 = L2.labCompute(ids2, curIds2, newIds2, 3, 1.0, hist2);
+A(R1.edits === 1 && R1.hits === 0 && R1.d0 > 0.2 && top2.cost <= weak2.cost + 1.0, 'Team Lab: one real affordable swap raises the projection (+' + R1.d0.toFixed(1) + ') with no hits');
+const gkA2 = pickLow2('GK')[0], gkSlot2 = curIds2.indexOf(gkA2.id);
+const Lg2 = L2.labCandidateList(R0.byId, curIds2, curIds2, 0, gkSlot2, 60);
+const pricey2 = univ2.filter(u => u.posL === 'GK' && act2(u)).sort((a, b) => b.cost - a.cost)[0];
+A(Lg2.aff.every(c => c.cost <= gkA2.cost + 1e-9) && pricey2.cost > gkA2.cost, 'Team Lab: zero-bank locks the premium GK out (greyed, honest budget)');
+let trial2 = curIds2.slice(), nch2 = 0;
+for (let i = 0; i < curIds2.length && nch2 < 3; i++) { const cl = L2.labCandidateList(R0.byId, curIds2, trial2, 1.0, i, 60); if (cl.aff.length) { trial2[i] = cl.aff[0].id; nch2++; } }
+const R3b = L2.labCompute(ids2, curIds2, trial2, 3, 1.0, hist2);
+A(R3b.edits === 3 && R3b.hits === 8, 'Team Lab: 3 edits → −8 pts honesty line (1 free transfer + 2 × −4)');
+const M3 = L2.teamMomChart(R0.realSeries, R0.c5, R1.e5);
+A((M3.match(/<polyline /g) || []).length === 2 && M3.indexOf('edited team') >= 0 && !/NaN/.test(M3), 'Team Lab: momentum chart draws the edited team as a second dashed line');
+const fxS = L2.labFxsOf(R0.byId[curIds2[slot2]], 3);
+A(fxS.length === 5 && fxS.every(f => f.afdr >= 1 && f.afdr <= 5) && fxS[0].gw === 4, 'Team Lab: heat cells aligned GW4 start, difficulty 1–5');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);

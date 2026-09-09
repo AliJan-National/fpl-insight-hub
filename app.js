@@ -183,14 +183,16 @@ function sellInfo(cur, o) {
 // projections come from the same forecast spine, labelled as model estimates.
 
 // (1) Your weekly score: real bars + model projection line across next 5 GWs
-function teamMomChart(real, proj) {
-  if ((!real || !real.length) && (!proj || !proj.length)) return '';
-  const pts = real.concat(proj).map(p => p.v).concat([0]);
+function teamMomChart(real, proj, alt) {
+  // Optional 3rd series (alt) = the edited team drawn by the Team Lab; a plain
+  // two-argument call renders exactly what v33 shipped (real bars + one line).
+  if ((!real || !real.length) && (!proj || !proj.length) && (!alt || !alt.length)) return '';
+  const pts = (real || []).concat(proj || []).concat(alt || []).map(p => p.v).concat([0]);
   const rawMax = Math.max.apply(null, pts);
   const step = rawMax <= 60 ? 10 : rawMax <= 120 ? 20 : 50;
   const yMax = Math.max(step, Math.ceil(rawMax / step) * step);
   const W = 760, H = 258, L = 46, R = 14, T = 30, B = 50;
-  const n = real.length + proj.length, band = (W - L - R) / Math.max(n, 1);
+  const n = real.length + (proj || []).length, band = (W - L - R) / Math.max(n, 1);
   const X = i => L + band * (i + 0.5);
   const Y = v => T + (H - T - B) * (1 - v / yMax);
   let g = '';
@@ -206,23 +208,27 @@ function teamMomChart(real, proj) {
     g += `<text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" text-anchor="middle" font-size="11" fill="#cfe3ff" font-weight="700">${Math.round(p.v)}</text>`;
     i++;
   });
-  if (real.length && proj.length) {
+  if (real.length && (proj || []).length) {
     const sx = L + band * (real.length - 0.5);
     g += `<line x1="${sx.toFixed(1)}" y1="${T}" x2="${sx.toFixed(1)}" y2="${H - B}" stroke="rgba(255,209,102,.55)" stroke-dasharray="4 4"/>`;
   }
-  if (proj.length) {
-    const coords = proj.map((p, k) => { const x = L + band * (real.length + k + 0.5); return { x, y: Y(p.v), p }; });
+  const lineFn = (list, color, dash, tag, label) => {
+    const coords = list.map((p, k) => { const x = L + band * (real.length + k + 0.5); return { x, y: Y(p.v), p }; });
+    if (!coords.length) return;
     const pts = coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
-    g += `<polyline points="${pts}" fill="none" stroke="#ffd166" stroke-width="2.5" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    g += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="${dash}" stroke-linejoin="round" stroke-linecap="round"/>`;
     coords.forEach(c => {
-      g += `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="4" fill="#0d1117" stroke="#ffd166" stroke-width="2"><title>GW${c.p.gw}: model ~${c.p.v.toFixed(1)} pts</title></circle>`;
-      g += `<text x="${c.x.toFixed(1)}" y="${(c.y - 9).toFixed(1)}" text-anchor="middle" font-size="11" fill="#ffe9a8">${c.p.v.toFixed(1)}</text>`;
+      g += `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="4" fill="#0d1117" stroke="${color}" stroke-width="2"><title>GW${c.p.gw}: model ~${c.p.v.toFixed(1)} pts (${tag})</title></circle>`;
+      g += `<text x="${c.x.toFixed(1)}" y="${(c.y - 9).toFixed(1)}" text-anchor="middle" font-size="11" fill="${label}">${c.p.v.toFixed(1)}</text>`;
     });
-  }
+  };
+  if ((proj || []).length) lineFn(proj, '#ffd166', '6 5', 'your team', '#ffe9a8');
+  if (alt && alt.length) lineFn(alt, '#3fb950', '2 3', 'edited team', '#b6f7c2');
   real.forEach((p, k) => { const x = X(k); g += `<text x="${x.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="#8a93a6">GW${p.gw}</text>`; });
-  proj.forEach((p, k) => { const x = X(real.length + k); g += `<text x="${x.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="#ffe9a8">GW${p.gw}</text>`; });
+  (proj || []).forEach((p, k) => { const x = X(real.length + k); g += `<text x="${x.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" font-size="11" fill="#ffe9a8">GW${p.gw}</text>`; });
   g += `<text x="${L}" y="16" font-size="11" fill="#cfe3ff">■ real score</text>`;
-  if (proj.length) g += `<text x="${L + 118}" y="16" font-size="11" fill="#ffe9a8">┄ model projection</text>`;
+  if ((proj || []).length) g += `<text x="${L + 118}" y="16" font-size="11" fill="#ffe9a8">┄ model projection</text>`;
+  if (alt && alt.length) g += `<text x="${L + 246}" y="16" font-size="11" fill="#b6f7c2">┄ edited team</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img"><title>Your weekly score: real (bars) vs model projection (dashed line)</title>${g}</svg>`;
 }
 
@@ -562,6 +568,10 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     const posEl = $('#posStack'); if (posEl && typeof posStackHtml === 'function') posEl.innerHTML = posStackHtml(xi, bench);
   } catch (e) { console.error('[posStack]', e); }
 
+  // ---- 🧪 Team Lab (v34): interactive swap experiment (guarded) ----
+  try { if (typeof renderTeamLab === 'function') renderTeamLab(ids, squad, picksGw, bank, hist); }
+  catch (e) { console.error('[teamLab]', e); }
+
   // ---- hand context to the Assistant ----
   window.TEAMCTX = {
     squad, bank, maxFund, picksGw,
@@ -573,6 +583,274 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
     proj, benchWaste,
     usedChips: [...used], chipsLeft: ALL_CHIPS.filter(([k]) => !used.has(k)).map(([, l]) => l),
   };
+}
+
+// ============ 🧪 TEAM LAB (v34) ============
+// Interactive squad editor inside My Team. Pick a replacement for any slot (same
+// position, real players only) and the projection / charts recompute instantly
+// on the SAME spine as the rest of the app (best-XI + captain, one forecast).
+// It is an experiment surface only — nothing is saved to FPL. Every figure is a
+// labelled model estimate from real data. The pure core (labUniverse / labEpOf /
+// labRawOf / labTotal / labSeries / labCompute / labCandidateList) is
+// deterministic and regression-tested; rendering is guarded at the call site so
+// a lab failure can never break My Team.
+const LAB_POS_L = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' };
+
+// one flat player record for the lab: official element meta + catalog overlay
+function labUniverse(ids) {
+  const catById = {};
+  (DATA.players || []).forEach(p => { if (p && p.id != null) catById[p.id] = p; });
+  const els = (ids && ids.elements) || {}, teams = (ids && ids.teams) || {};
+  const out = [];
+  Object.keys(els).forEach(k => {
+    const id = +k, el = els[k] || {}, p = catById[id] || null;
+    const t = teams[el.t] || {};
+    const posN = el.et;
+    out.push({
+      id, el, p,
+      name: p ? p.name : (el.n || '#?'),
+      short: t.short || '', code: t.code != null ? t.code : null,
+      pos: posN, posL: LAB_POS_L[posN] || (p && p.pos) || 'MID',
+      cost: p ? +(p.cost || 0) : +((el.c || 0) / 10),
+      form: +(p ? (p.form != null ? p.form : el.form) : (el.form || 0)),
+      own: p ? (p.own || 0) : 0,
+      pts: p ? (p.pts != null ? p.pts : el.pts) : (el.pts || 0),
+      mins: p ? (p.mins || 0) : (el.mins || 0),
+      status: (p ? p.status : el.s) || 'a',
+    });
+  });
+  return out;
+}
+// next-GW model xP (rounded, card style) — the SAME number the Best XI card shows
+function labEpOf(u) {
+  if (u._ep === undefined) {
+    let v = null;
+    if (u.p) { try { const f = forecastOf(u.p); v = f && f.xp != null ? f.xp : null; } catch (e) { v = null; } }
+    if (v == null && u.el && u.el.ep != null) v = u.el.ep; // official reference only when the model has no record
+    u._ep = v == null ? 0 : v;
+  }
+  return u._ep;
+}
+// raw per-GW projection (chart spine) — same series the weekly-score chart draws
+function labRawOf(u, k) {
+  if (u.p) { try { return projP(u.p, k); } catch (e) { /* fall through */ } }
+  return (u.el && u.el.ep != null) ? u.el.ep : 0;
+}
+// next-5 fixtures for a player's club, aligned to picksGw (cloned cells)
+function labFxsOf(u, picksGw) {
+  const arr = (window.NEXT_BY_CODE && u.code != null) ? (window.NEXT_BY_CODE[u.code] || null) : null;
+  const a = (window.TF && u.short && window.TF[u.short]) ? (window.TF[u.short].afx || []) : [];
+  const out = [];
+  if (!arr) return out;
+  for (let i = 0; i < 5 && i < arr.length; i++) {
+    const f = arr[i] || {};
+    const adj = a[i];
+    const have = adj != null;
+    const fdr = f.fdr || 3;
+    out.push({
+      gw: f.gw || (picksGw + 1 + i), opp: f.opp || '—', ha: f.ha || '?', fdr,
+      adjv: have ? adj : (f.adjv != null ? f.adjv : fdr),
+      afdr: Math.max(1, Math.min(5, Math.round(have ? adj : (f.afdr != null ? f.afdr : fdr)))),
+    });
+  }
+  return out;
+}
+// best-XI + captain total, card style (per-player rounded xP) -> {tot, xi, capId}
+function labTotal(list) {
+  const xi = (typeof bestXI === 'function' ? bestXI(list, u => labEpOf(u)) : null) || list.slice(0, 11);
+  let s = 0, mx = 0, capId = null;
+  xi.forEach(u => { const e = labEpOf(u); s += e; if (e > mx) { mx = e; capId = u.id; } });
+  return { tot: s + mx, xi, cap: mx, capId };
+}
+// next-5 chart series (raw spine) — mirrors the weekly-score projection line
+function labSeries(list, picksGw) {
+  const arr = [];
+  for (let k = 0; k < 5; k++) {
+    const xiK = (typeof bestXI === 'function' ? bestXI(list, u => labRawOf(u, k)) : null) || list.slice(0, 11);
+    let tot = 0; xiK.forEach(u => { tot += labRawOf(u, k); });
+    let cap = 0; xiK.forEach(u => { const r = labRawOf(u, k); if (r > cap) cap = r; });
+    arr.push({ gw: picksGw + 1 + k, v: Math.round((tot + cap) * 10) / 10 });
+  }
+  return arr;
+}
+// pure summary of the current experiment state (current vs edited 15)
+function labCompute(ids, curIds, newIds, picksGw, bank, hist) {
+  const u = labUniverse(ids);
+  const byId = {}; u.forEach(x => byId[x.id] = x);
+  const cur = curIds.map(id => byId[id]).filter(Boolean);
+  const neu = newIds.map(id => byId[id]).filter(Boolean);
+  const C = labTotal(cur), E = labTotal(neu);
+  const edits = curIds.reduce((n, id, i) => n + (id !== newIds[i] ? 1 : 0), 0);
+  const hits = Math.max(0, edits - 1) * 4;
+  const costC = cur.reduce((s, x) => s + x.cost, 0), costE = neu.reduce((s, x) => s + x.cost, 0);
+  const bankAfter = Math.round((bank + costC - costE) * 100) / 100;
+  const realSeries = ((hist && hist.current) || []).filter(e => e && e.event && e.event <= picksGw)
+    .map(e => ({ gw: e.event, v: Math.round((e.points || 0) * 10) / 10 })).sort((a, b) => a.gw - b.gw);
+  return { edits, hits, costC, costE, bankAfter, bank,
+    cTot: C.tot, eTot: E.tot, d0: E.tot - C.tot,
+    xiCur: C.xi, xiEdit: E.xi, capIdCur: C.capId, capIdEdit: E.capId,
+    c5: labSeries(cur, picksGw), e5: labSeries(neu, picksGw), realSeries, cur, neu, byId };
+}
+// same-position swap candidates for one slot, honouring budget & duplicates
+function labCandidateList(byId, curIds, newIds, bank, slotI, limit) {
+  const slotCur = byId[curIds[slotI]];
+  const posL = slotCur ? slotCur.posL : 'MID';
+  const chosen = new Set(newIds);
+  let bankOther = bank;
+  for (let j = 0; j < newIds.length; j++) {
+    if (j === slotI) continue;
+    const a = byId[curIds[j]], b = byId[newIds[j]];
+    if (a && b) bankOther += a.cost - b.cost;
+  }
+  const capFunds = Math.round((bankOther + (slotCur ? slotCur.cost : 0)) * 100) / 100;
+  const list = [];
+  Object.keys(byId).forEach(k => {
+    const c = byId[k];
+    if (!c || c.posL !== posL || chosen.has(c.id)) return;
+    if (c.status !== 'a') return; // only healthy, available players as swap targets
+    list.push({ id: c.id, name: c.name, short: c.short, cost: c.cost, form: c.form,
+      own: c.own, ep: labEpOf(c), aff: (capFunds + 1e-9) >= c.cost, status: c.status });
+  });
+  list.sort((a, b) => b.ep - a.ep || a.cost - b.cost || a.name.localeCompare(b.name));
+  const n = (limit || 50) | 0;
+  return { posL, capFunds,
+    aff: list.filter(x => x.aff).slice(0, n),
+    una: list.filter(x => !x.aff).slice(0, 12) };
+}
+// ---- DOM glue (guarded at the call site; a lab bug can never take My Team down)
+function renderTeamLab(ids, squad, picksGw, bank, hist) {
+  const host = $('#labPanel');
+  if (!host) return;
+  if (!ids || !ids.elements || !squad || !squad.length) {
+    host.innerHTML = '<p class="hint" style="margin-bottom:0">Load My Team above to start experimenting.</p>';
+    return;
+  }
+  const byId = {}; labUniverse(ids).forEach(u => byId[u.id] = u);
+  const curIds = squad.map(s => s.r.element).filter(id => byId[id]);
+  if (curIds.length < 15) {
+    host.innerHTML = '<p class="hint" style="margin-bottom:0">Team Lab needs your full 15-man squad.</p>';
+    return;
+  }
+  const st = { ids, byId, curIds, newIds: curIds.slice(), picksGw, bank, hist };
+  const fmt = (x, sign) => { const r = Math.round(x * 10) / 10; return (sign && r > 0 ? '+' : '') + r.toFixed(1); };
+  host.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<span class="lab-live" title="updates on every change">● LIVE</span>' +
+      '<span class="muted">swap a slot → the three charts below update instantly</span>' +
+      '<button id="labReset" class="btn" type="button" style="margin-left:auto">↺ Reset to my real team</button>' +
+    '</div>' +
+    '<div id="labRows" class="lab-grid"></div>' +
+    '<div id="labSum" style="margin-top:12px"></div>' +
+    '<p class="hint" style="margin-bottom:0;margin-top:10px">Same-position swaps only, so the team stays FPL-legal. ' +
+    'Options you cannot afford yet are greyed — downgrade another slot first to free budget. ' +
+    'Price = today\u2019s value (assume you sell at current price). Captain is the model\u2019s suggested captain, like the Best XI card. ' +
+    'Nothing here is saved to FPL — it\u2019s an experiment on real data.</p>';
+  $('#labReset').onclick = () => { st.newIds = st.curIds.slice(); paint(); };
+
+  function slotOptions(i) {
+    const now = byId[st.newIds[i]];
+    const L = labCandidateList(byId, st.curIds, st.newIds, st.bank, i);
+    const opt = (c, dis) => `<option value="${c.id}"${dis ? ' disabled' : ''} title="${esc(c.name)} · ${esc(c.short)} · form ${c.form} · ${c.own}% owned">` +
+      `${esc(c.name)} (${esc(c.short)}) · £${c.cost.toFixed(1)}m · xP ${c.ep.toFixed(1)}${dis ? ' — needs more funds' : ''}</option>`;
+    return '<option value="' + now.id + '">✓ Keep ' + esc(now.name) + ' · £' + now.cost.toFixed(1) + 'm</option>' +
+      (L.aff.length ? '<optgroup label="⇄ Replace with… (by model xP next GW)">' + L.aff.map(c => opt(c, false)).join('') + '</optgroup>' : '') +
+      (L.una.length ? '<optgroup label="🔒 Out of budget (top by xP)">' + L.una.map(c => opt(c, true)).join('') + '</optgroup>' : '');
+  }
+
+  function paint() {
+    const res = labCompute(st.ids, st.curIds, st.newIds, st.picksGw, st.bank, st.hist);
+    const xiIds = new Set(res.xiEdit.map(u => u.id));
+    const changedAt = {}; st.curIds.forEach((id, i) => { if (id !== st.newIds[i]) changedAt[st.newIds[i]] = true; });
+
+    // ---- slot pickers ----
+    const rowsEl = $('#labRows');
+    if (rowsEl) rowsEl.innerHTML = st.newIds.map((id, i) => {
+      const cur = byId[st.curIds[i]], now = byId[id];
+      const changed = cur.id !== now.id;
+      const inXi = xiIds.has(now.id);
+      return `<div class="lab-slot${changed ? ' changed' : ''}">
+        <div class="lab-num">${i + 1}</div>
+        <div>
+          <div class="lab-headline">${posBadge(now.posL)} <b>${esc(now.name)}</b>
+            <span class="team-tag">${esc(now.short)} · £${now.cost.toFixed(1)}m</span>
+            ${inXi ? '<span class="lab-badge xi">START XI</span>' : '<span class="lab-badge b">BENCH</span>'}
+            ${now.id === res.capIdEdit ? '<span class="lab-badge cap">👑 captain</span>' : ''}
+            ${changed ? '<span class="lab-badge swap" title="was ' + esc(cur.name) + '">⇄ swapped</span>' : ''}
+          </div>
+          <select class="lab-sel" data-slot="${i}" title="Pick who plays this slot">${slotOptions(i)}</select>
+        </div>
+        <div class="lab-xp"><div class="lab-xpv">xP ${labEpOf(now).toFixed(1)}</div>
+          <div class="lab-meta">${changed ? 'was: ' + esc(cur.name) : esc(now.short) + ' · form ' + now.form}</div></div>
+      </div>`;
+    }).join('');
+
+    // ---- summary strip ----
+    const sumC5 = res.c5.reduce((s, p) => s + p.v, 0), sumE5 = res.e5.reduce((s, p) => s + p.v, 0);
+    const d5 = sumE5 - sumC5;
+    const net0 = res.eTot - res.hits;
+    let html = '';
+    if (!res.edits) {
+      html += `<div class="lab-line">Your current team (no swaps yet) projects <b>${res.cTot.toFixed(1)} pts</b> next GW ` +
+        `(best XI + suggested captain) and <b>${sumC5.toFixed(1)}</b> over the next 5 GWs. Pick a replacement above to compare.</div>`;
+    } else {
+      const cls0 = res.d0 > 0.05 ? 'up' : res.d0 < -0.05 ? 'down' : 'muted';
+      const cls5 = d5 > 0.05 ? 'up' : d5 < -0.05 ? 'down' : 'muted';
+      html += `<div class="lab-line"><b>Next GW (best XI + captain):</b> ${res.cTot.toFixed(1)} → ` +
+        `<b>${res.eTot.toFixed(1)}</b> <span class="${cls0}">${fmt(res.d0, true)}</span></div>`;
+      html += `<div class="lab-line"><b>Next 5 GWs (chart projection):</b> ${sumC5.toFixed(1)} → ` +
+        `<b>${sumE5.toFixed(1)}</b> <span class="${cls5}">${fmt(d5, true)}</span></div>`;
+      html += `<div class="lab-line">Team cost £${res.costC.toFixed(1)}m → <b>£${res.costE.toFixed(1)}m</b> · ` +
+        `bank after swaps <b>£${Math.max(0, res.bankAfter).toFixed(1)}m</b>${res.bankAfter < 0 ? ' <span class="down">⚠ over budget</span>' : ''}</div>`;
+      if (res.hits) {
+        html += `<div class="lab-line">⚠ <b>${res.edits} changes</b> = ${res.edits - 1} transfer(s) beyond your 1 free one this GW ` +
+          `→ <span class="down">−${res.hits} pts</span> in real FPL; net next-GW ≈ <b>${net0.toFixed(1)}</b></div>`;
+      } else {
+        html += `<div class="lab-line">${res.edits} change${res.edits > 1 ? 's' : ''} fits inside your 1 free transfer this GW → no hits.</div>`;
+      }
+    }
+    const sumEl = $('#labSum'); if (sumEl) sumEl.innerHTML = html;
+
+    // ---- repaint the three charts for the (possibly edited) squad ----
+    const rows15 = st.newIds.map(id => byId[id]).filter(Boolean);
+    const order = res.xiEdit.slice();
+    order.push.apply(order, rows15.filter(u => !xiIds.has(u.id)).sort((a, b) => labEpOf(b) - labEpOf(a)));
+    const heat = order.map((u, idx) => {
+      const pos = idx < 11 ? idx + 1 : 12 + (idx - 11);
+      return { r: { element: u.id, position: pos, is_captain: u.id === res.capIdEdit },
+        e: { n: u.name + (changedAt[u.id] ? ' ⇄' : '') }, pos: u.pos, ep: labEpOf(u),
+        fxs: labFxsOf(u, st.picksGw) };
+    });
+    const xiItems = heat.filter(x => x.r.position <= 11), benchItems = heat.filter(x => x.r.position > 11);
+    const momEl = $('#teamMom');
+    if (momEl && typeof teamMomChart === 'function') momEl.innerHTML = teamMomChart(res.realSeries, res.c5, res.edits ? res.e5 : null);
+    const momH = $('#momHint');
+    if (momH) momH.textContent = res.edits
+      ? 'Bars = your real weekly score. Amber dashed = your team\u2019s projection; green dashed = the EDITED team (Team Lab). Reset the lab to drop the green line.'
+      : 'Bars = your real weekly score (official entry history). Dashed line = model best-XI + captain projection (next 5 GWs, labelled estimate).';
+    const heatEl = $('#squadHeat');
+    if (heatEl && typeof squadHeatHtml === 'function') heatEl.innerHTML = squadHeatHtml(heat, st.picksGw);
+    const heatH = $('#heatHint');
+    if (heatH) heatH.textContent = res.edits
+      ? 'Now showing the EDITED squad (⇄ = swapped in the Team Lab). Starters on top, bench dimmed (B), captain 👑.'
+      : 'Rows: your projected starters first, bench dimmed (B). Cells coloured by adjusted difficulty 1–5 — your best transfer/bench windows at a glance.';
+    const posEl = $('#posStack');
+    if (posEl && typeof posStackHtml === 'function') posEl.innerHTML = posStackHtml(xiItems, benchItems);
+  }
+
+  host.onchange = ev => {
+    const sel = ev.target;
+    if (!sel || !sel.dataset || sel.dataset.slot === undefined) return;
+    const i = +sel.dataset.slot;
+    if (!(i >= 0 && i < st.newIds.length)) return;
+    const val = +sel.value;
+    if (!byId[val]) return;
+    const curId = st.newIds[i];
+    if (byId[val].posL !== byId[curId].posL) return;                 // same-position swap only
+    if (val !== curId && st.newIds.indexOf(val) !== -1) return;      // duplicate guard
+    st.newIds[i] = val;
+    paint();
+  };
+  paint();
 }
 
 function renderLeague() {
