@@ -91,6 +91,16 @@ A(/Gakpo/.test(out) && !/Load your team/.test(out), 'B9 fixed: named player + fi
 out = R.askAI('what did elite managers buy?');
 A(/ELITE-ANSWER/.test(out), 'genuine elite questions still route to eliteAsk');
 
+// ---------- 5b. SELL? honesty (v32): only real upgrades trigger a sell ----
+const H = slice('// ============ 🔁 SELL? HONESTY', 'function renderTeam(');
+const S = (0, eval)('(function(){ ' + FM + '\n' + osmBlock + '\n' + spine + '\n' + H + '\nreturn { sellUpgrade, sellInfo, hSumP }; })()');
+const haaH = DATA.players.find(p => p.name === 'Haaland');
+A(S.sellUpgrade(haaH, 2, new Set()) === null, 'SELL honesty: Haaland (elite 3-GW xP, hard MUN/LIV run) is not a sell — the fixture-only SELL? is gone');
+const worstF = DATA.players.filter(p => p.pos === 'FWD' && p.status === 'a' && p.mins >= 90)
+  .sort((a, b) => S.hSumP(a, 3) - S.hSumP(b, 3)).slice(0, 3);
+A(worstF.some(p => S.sellUpgrade(p, 2, new Set())), 'SELL honesty: a bottom-output FWD gets a concrete upgrade (SELL? only ever appears with one)');
+A(S.sellInfo(haaH, { bank: 2, ownedIds: new Set(), isCaptain: true }).tag !== 'SELL?', 'SELL honesty: the captain is never pushed to sell');
+
 // ---------- 6. xP forecast ledger: armed now, measured when a recorded GW lands (M3) ----------
 const store = {};
 global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };

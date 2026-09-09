@@ -137,6 +137,46 @@ async function loadMyTeam() {
   }
 }
 
+// ============ 🔁 SELL? HONESTY (v32) ============
+// "SELL?" is only stamped when the engine can name a real, affordable,
+// same-position upgrade that out-projects the player over the NEXT 3 GWs by a
+// meaningful margin. A hard fixture run alone (e.g. Haaland vs MUN·LIV) is NOT
+// a sell signal. Your captain is never pushed to sell. Every figure comes from
+// the same forecast spine as the rest of the app — a labelled model estimate.
+const SELL_BAR3 = 1.2;        // min next-3 xP advantage to justify a transfer
+const SELL_RUN_MAX = 3.0;     // upgrade must face a reasonable run (adj avg <= this)
+const TOUGH_RUN_MIN = 3.4;    // player's own run avg that labels "tough run"
+function runAvg3Of(p) {
+  const v = ((p && p.next3) || []).map(f => f.adjv ?? f.fdr);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 3;
+}
+function sellUpgrade(cur, bank, ownedIds) {
+  if (!cur || typeof hSumP !== 'function') return null;
+  const funds = bank + (cur.cost || 0);
+  const own3 = hSumP(cur, 3);
+  let best = null;
+  for (const p of DATA.players || []) {
+    if (p.pos !== cur.pos || p.status !== 'a' || (p.mins || 0) < 90) continue;
+    if ((p.cost || 0) > funds || ownedIds.has(p.id)) continue;
+    if (runAvg3Of(p) > SELL_RUN_MAX) continue;
+    const d3 = hSumP(p, 3) - own3;
+    if (!best || d3 > best.d3) best = { p, d3 };
+  }
+  if (!best || best.d3 < SELL_BAR3) return null;
+  const f = (typeof forecastOf === 'function') ? forecastOf(best.p) : null;
+  return { p: best.p,
+    px: f && f.xp != null ? f.xp : Math.round(((best.p.ep_next || 0) + (best.p.form || 0) * 0.5) * 10) / 10,
+    d3: Math.round(best.d3 * 10) / 10, funds: Math.round(funds * 100) / 100 };
+}
+// full tag decision: 'SELL?' only with a real upgrade; 'tough run' otherwise when
+// the player's own run is hard and no upgrade clears the bar; captain never SELL.
+function sellInfo(cur, o) {
+  if (!cur) return { upg: null, tag: null };
+  const upg = o && o.isCaptain ? null : sellUpgrade(cur, (o && o.bank) || 0, (o && o.ownedIds) || new Set());
+  if (upg) return { upg, tag: 'SELL?' };
+  if (!(o && o.isCaptain) && runAvg3Of(cur) >= TOUGH_RUN_MIN) return { upg: null, tag: 'tough run' };
+  return { upg: null, tag: null };
+}
 function renderTeam(ids, entry, hist, picks, picksGw) {
   // compact catalog: elements by id, teams by FPL team id
   const elById = ids.elements;
@@ -196,13 +236,25 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   const userCap = squad.find(s => s.r.is_captain);
   const capTop3 = new Set([...squad].sort((a, b) => capScore(b) - capScore(a)).slice(0, 3).map(s => s.r.element));
 
+  const catMap = {};
+  (DATA.players || []).forEach(p => { catMap[p.id] = p; });
+  const bank = (eh.bank ?? 0) / 10;
   squad.forEach(s => {
     s.cap = capScore(s);
     const v = [];
-    if (s.flagged) v.push(['⚠ FLAG', 'vd-sell']);
-    v.push(xiSet.has(s.r.element) ? ['START', 'vd-start'] : ['BENCH', 'vd-bench']);
-    if (capTop3.has(s.r.element) && !s.flagged) v.push(['C OPT', 'vd-cap']);
-    if ((!xiSet.has(s.r.element) && s.ep < 1.6) || s.a3 >= 3.4 || s.flagged) v.push(['SELL?', 'vd-sell']);
+    const inXI = xiSet.has(s.r.element);
+    const cur = catMap[s.r.element];
+    if (s.flagged) {
+      v.push(['⚠ FLAG', 'vd-sell']);
+      v.push(inXI ? ['START', 'vd-start'] : ['BENCH', 'vd-bench']);
+    } else {
+      v.push(inXI ? ['START', 'vd-start'] : ['BENCH', 'vd-bench']);
+      if (capTop3.has(s.r.element)) v.push(['C OPT', 'vd-cap']);
+      const si = sellInfo(cur, { isCaptain: !!s.r.is_captain, bank, ownedIds });
+      s._upg = si.upg;
+      if (si.tag === 'SELL?') v.push(['SELL?', 'vd-sell']);
+      else if (si.tag === 'tough run') v.push(['tough run', 'vd-warn']);
+    }
     s.verdicts = v;
   });
 
@@ -266,25 +318,19 @@ function renderTeam(ids, entry, hist, picks, picksGw) {
   }).join('') || '<p class="hint">—</p>';
 
   // ---- Suggested transfer pairs ----
-  const bank = (eh.bank ?? 0) / 10;
-  const pairs = [];
-  for (const s of squad) {
-    if (!s.verdicts.some(v => v[0] === 'SELL?') || !s.e) continue;
-    const funds = bank + s.e.c / 10;
-    const cand = DATA.players
-      .filter(p => !ownedIds.has(p.id) && p.status === 'a' && p.mins >= 90 && p.cost <= funds && p.pos === posName[s.pos] && adjAvg3(p) <= 2.9)
-      .map(p => { const f = forecastOf(p); return { p, xp: f ? f.xp : Math.round(((p.ep_next || 0) + (p.form || 0) * 0.5) * 10) / 10 }; })
-      .sort((a, b) => b.xp - a.xp)[0];
-    if (cand && cand.xp - s.ep > 0.4) pairs.push({ out: s, in: cand.p, delta: cand.xp - s.ep, inX: cand.xp, funds });
-  }
-  pairs.sort((a, b) => b.delta - a.delta);
-  $('#pairsList').innerHTML = pairs.slice(0, 3).map(pr => `
-    <div class="pair-card">
-      <div class="who"><b class="down">${esc(pr.out.e.n)}</b> <span class="team-tag">${pr.out.t ? pr.out.t.short : ''} · £${(pr.out.e.c / 10).toFixed(1)}m · xP ${pr.out.ep.toFixed(1)}</span></div>
+  const pairs = squad.filter(s => s._upg && s.verdicts.some(x => x[0] === 'SELL?'))
+    .sort((a, b) => b._upg.d3 - a._upg.d3).slice(0, 3);
+  $('#pairsList').innerHTML = pairs.map(pr => {
+    const u = pr._upg;
+    const outNm = (pr.e && pr.e.n) ? pr.e.n : '#?';
+    return `<div class="pair-card">
+      <div class="who"><b class="down">${esc(outNm)}</b> <span class="team-tag">${pr.t ? pr.t.short : ''} · £${(pr.e && pr.e.c ? pr.e.c / 10 : 0).toFixed(1)}m · xP ${pr.ep.toFixed(1)}</span></div>
       <span class="arrow">→</span>
-      <div class="who"><b class="up">${esc(pr.in.name)}</b> <span class="team-tag">${pr.in.team} · £${pr.in.cost}m · xP ${pr.inX.toFixed(1)}</span></div>
-      <div class="delta"><span class="up">+${pr.delta.toFixed(1)}</span><div class="sig-meta">Δ xP/GW · funds £${pr.funds.toFixed(1)}m ✓</div></div>
-    </div>`).join('') || '<p class="hint">No affordable, clearly positive moves right now — holding is fine.</p>';
+      <div class="who"><b class="up">${esc(u.p.name)}</b> <span class="team-tag">${u.p.team} · £${u.p.cost}m · xP ${u.px.toFixed(1)}</span></div>
+      <div class="delta"><span class="up">+${u.d3.toFixed(1)}</span><div class="sig-meta">Δ next-3 xP · funds £${u.funds.toFixed(1)}m ✓</div></div>
+    </div>`;
+  }).join('') || '<p class="hint">No affordable, clearly positive moves right now — holding is fine. "SELL?" only appears when a same-position upgrade out-projects the player over the next 3 GWs.</p>';
+  const sh = $('#sellHint'); if (sh) sh.textContent = 'SELL? = a real upgrade beats this player over the next 3 GWs (Δ above). A hard fixture run with no upgrade = hold. Your captain is never pushed to sell.';
 
   // ---- GW-by-GW game plan (hold / bench-sell / buy) ----
   const benchVals = bench.map(s => (s.e ? s.e.c / 10 : 0)).sort((a, b) => b - a);
