@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0c061f">
+<meta name="color-scheme" content="dark">
 <title>FPL Insight Hub — 2026/27</title>
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2300ff85'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)'/%3E%3Cpath d='M50 6 L94 50 L50 94 L6 50 Z' fill='none' stroke='%23062' stroke-width='3' opacity='.7'/%3E%3Ccircle cx='50' cy='50' r='13' fill='%230c061f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 <header>
@@ -73,7 +76,7 @@
           <b>CLOUDFLARE-WORKER.md</b> in this repo — then paste its URL here once. It's saved in your browser.</p>
         <div class="entry-row">
           <input id="proxyUrl" type="text" placeholder="https://your-proxy.your-subdomain.workers.dev">
-          <button id="saveProxy" class="btn">Save proxy</button>
+          <button id="saveProxy" class="btn ghost">Save proxy</button>
           <span id="proxyStatus" class="muted"></span>
         </div>
       </details>
@@ -306,6 +309,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>

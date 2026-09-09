@@ -737,7 +737,7 @@ function renderTeamLab(ids, squad, picksGw, bank, hist) {
     '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">' +
       '<span class="lab-live" title="updates on every change">● LIVE</span>' +
       '<span class="muted">swap a slot → the three charts below update instantly</span>' +
-      '<button id="labReset" class="btn" type="button" style="margin-left:auto">↺ Reset to my real team</button>' +
+      '<button id="labReset" class="btn ghost" type="button" style="margin-left:auto">↺ Reset to my real team</button>' +
     '</div>' +
     '<div id="labRows" class="lab-grid"></div>' +
     '<div id="labSum" style="margin-top:12px"></div>' +
