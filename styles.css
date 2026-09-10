@@ -1,5 +1,5 @@
 /* ============================================================
-   FPL Insight Hub — v35 Elite design system
+   FPL Insight Hub — v36 Elite design system (Market Pulse + smooth fixture grading)
    Zero-build, single file, no external assets.
    Aesthetic: deep-space "mission control" — layered aurora
    canvas, glass surfaces, one action accent (green), refined
@@ -583,3 +583,43 @@ footer {
 .x-plc { margin-bottom: 0; }
 .x-card { break-inside: avoid; }
 .x-dq { margin-top: 10px; }
+
+/* ===== 🛰️ Market Pulse (v36) ===== */
+.mp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.mp-h { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 9px; font-weight: 800; }
+.mp-h.up { color: var(--green-soft); }
+.mp-h.down { color: #ff8da4; }
+.mp-row {
+  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012));
+  border: 1px solid var(--hair); border-radius: var(--r-md);
+  padding: 9px 12px; margin-bottom: 8px; transition: border-color .13s ease, transform .13s ease;
+}
+.mp-row:hover { border-color: rgba(0,255,133,.35); transform: translateY(-1px); }
+.mp-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13.5px; }
+.mp-top .team-tag { margin-left: 2px; }
+.mp-net { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13px; }
+.mp-mid { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.mp-why { font-size: 11.5px; color: var(--muted); }
+.mp-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.mp-stats b { color: #d9ccf5; font-variant-numeric: tabular-nums; }
+.mp-chip { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .4px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.mp-chip.ok { background: rgba(0,255,133,.15); color: var(--green-soft); box-shadow: inset 0 0 0 1px rgba(0,255,133,.32); }
+.mp-chip.mid { background: rgba(177,140,255,.16); color: #d3bcff; box-shadow: inset 0 0 0 1px rgba(177,140,255,.32); }
+.mp-chip.warn { background: rgba(255,201,77,.14); color: var(--amber); box-shadow: inset 0 0 0 1px rgba(255,201,77,.32); }
+.mp-chip.muted { background: rgba(255,255,255,.07); color: var(--muted); }
+.mp-headline { background: linear-gradient(90deg, rgba(0,255,133,.07), rgba(255,255,255,.015));
+  border-left: 3px solid var(--green); border-radius: 8px; padding: 9px 13px; margin-bottom: 12px;
+  font-size: 13px; line-height: 1.6; }
+.mp-chip-row { display: grid; grid-template-columns: 108px 1fr auto; gap: 10px; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.055); }
+.mp-chip-row:last-of-type { border-bottom: none; }
+.mp-chip-name { font-size: 12.5px; font-weight: 700; }
+.mp-bar { height: 8px; background: rgba(255,255,255,.07); border-radius: 5px; overflow: hidden; }
+.mp-bar-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #00e376, #39ffa2); box-shadow: 0 0 12px -3px rgba(0,255,133,.7); }
+.mp-chip-num { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-chip-meta { grid-column: 2 / -1; font-size: 10.5px; color: var(--muted); margin-top: -3px; }
+.mp-elite-row { display: flex; align-items: center; gap: 7px; padding: 6px 2px; font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,.05); }
+.mp-elite-row:last-child { border-bottom: none; }
+.mp-count { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--green-soft);
+  background: rgba(0,255,133,.12); border-radius: 999px; padding: 1px 9px; font-size: 11.5px; }

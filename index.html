@@ -7,7 +7,7 @@
 <meta name="color-scheme" content="dark">
 <title>FPL Insight Hub — 2026/27</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2300ff85'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)'/%3E%3Cpath d='M50 6 L94 50 L50 94 L6 50 Z' fill='none' stroke='%23062' stroke-width='3' opacity='.7'/%3E%3Ccircle cx='50' cy='50' r='13' fill='%230c061f'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
 <header>
@@ -261,7 +261,16 @@
   </section>
 
   <section id="radar" class="panel">
-    <p class="hint">Heuristic signals computed from the open dataset — xG regression, transfer momentum, differentials. Not financial advice 😉</p>
+    <div class="card">
+      <h2>🛰️ Market Pulse <span class="muted">— where the crowd is going, and whether our model agrees</span></h2>
+      <p class="hint">Built from <b>real FPL data</b>: the whole population's transfer momentum &amp; ownership, plus the actual behaviour of the <b>40 tracked elite managers</b>. We do <b>not</b> scrape Instagram/X/YouTube — those need paid keys or a backend a static site cannot hide (see the note at the bottom).</p>
+      <div id="crowdModel"></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card"><h2>🃏 Chip usage — what managers are actually playing</h2><div id="chipTrends"></div></div>
+      <div class="card"><h2>🧠 Elite flow <span class="muted">— the tracked top managers</span></h2><div id="eliteFlow"></div></div>
+    </div>
+    <p class="hint" style="margin-top:14px">Heuristic signals computed from the open dataset — xG regression, transfer momentum, differentials. Not financial advice 😉</p>
     <div class="grid2">
       <div class="card">
         <h2 class="green">▲ Buy Signals</h2>
@@ -309,6 +318,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>

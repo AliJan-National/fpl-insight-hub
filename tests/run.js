@@ -178,6 +178,39 @@ A((M3.match(/<polyline /g) || []).length === 2 && M3.indexOf('edited team') >= 0
 const fxS = L2.labFxsOf(R0.byId[curIds2[slot2]], 3);
 A(fxS.length === 5 && fxS.every(f => f.afdr >= 1 && f.afdr <= 5) && fxS[0].gw === 4, 'Team Lab: heat cells aligned GW4 start, difficulty 1–5');
 
+// ---------- 5e. Market Pulse (v36): crowd vs model, real chip trends, smooth grading ----------
+const MP = slice('// ============ 🛰️ MARKET PULSE (v36)', 'function renderLeague()');
+const MK = (0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + FM + '\n' + osmBlock + '\n' + spine + '\n' + MP + '\nreturn { crowdList, crowdVerdict, crowdSellVerdict, chipTrends, eliteFlow, crowdModelHtml, chipTrendsHtml, fixSmooth, fixtureFactor, oppFixOf, projP }; })()');
+const cIn = MK.crowdList(DATA.players, 'in', 5);
+const realNet = DATA.players.slice().sort((a, b) => (b.t_in - b.t_out) - (a.t_in - a.t_out))[0];
+A(cIn.length === 5 && cIn[0].p.id === realNet.id && cIn[0].net === realNet.t_in - realNet.t_out && cIn[0].net >= cIn[4].net,
+  'Market Pulse: crowd buys = real net-transfer leaders in descending order');
+A(MK.crowdVerdict({ name: 'X', status: 'i', pos: 'MID' }, { xp: 9, conf: { lvl: 'HIGH' } }).cls === 'warn',
+  'Market Pulse: an injured player is never endorsed as a crowd buy');
+A(/AGREES/.test(MK.crowdVerdict({ name: 'G', status: 'a', pos: 'MID', next3: [{ opp: 'HUL', ha: 'H', fdr: 2 }] }, { xp: 7.4, conf: { lvl: 'HIGH' }, minutes: { pStart: .95 } }).tag)
+  && /CROWD AHEAD/.test(MK.crowdVerdict({ name: 'W', status: 'a', pos: 'MID', next3: [{ opp: 'FUL', ha: 'H', fdr: 2 }] }, { xp: 3.2, conf: { lvl: 'HIGH' }, minutes: { pStart: .9 } }).tag),
+  'Market Pulse: verdicts separate "model agrees" from "crowd ahead of the maths"');
+const ctS = MK.chipTrends(DATA.elite, ['wildcard'], []);
+const rawChip = {}; DATA.elite.elites.forEach(e => Object.values(e.chips || {}).forEach(k => rawChip[k] = (rawChip[k] || 0) + 1));
+A(ctS.sample === 40 && ctS.rows.every(r => r.used === (rawChip[r.key] || 0) && r.used + r.hold === ctS.sample && r.pct >= 0 && r.pct <= 100),
+  'Market Pulse: chip usage matches the real 40-manager cohort exactly (' + ctS.rows.map(r => r.label + ' ' + r.used).join(', ') + ')');
+A(MK.chipTrendsHtml(ctS).indexOf('no global chip counter') >= 0, 'Market Pulse: chip panel discloses that FPL publishes no global chip counter');
+const efS = MK.eliteFlow(DATA.elite, +DATA.elite.meta.latest_complete, DATA.players, 8);
+const rawBought = DATA.elite.gw[String(DATA.elite.meta.latest_complete)].bought;
+A(efS.n === 40 && efS.bought.length === 8 && efS.bought[0].n === Math.max.apply(null, Object.values(rawBought)),
+  'Market Pulse: elite flow reads the real per-GW bought/sold maps (top buy made by ' + efS.bought[0].n + '/40)');
+const smoothB = [{ n: 1, xf: 0.8, pf: 0.6, c: 0.7 }, { n: 1, xf: 1.0, pf: 1.0, c: 1.0 }, { n: 1, xf: 1.3, pf: 1.5, c: 1.4 }];
+A(MK.fixSmooth(smoothB, 0.85, 'xf') > 0.8 && MK.fixSmooth(smoothB, 0.85, 'xf') < 1.0 && MK.fixSmooth(smoothB, 0.1, 'xf') === 0.8,
+  'v36 smooth grading: interpolates between the fitted band anchors, clamps outside them');
+const palC = DATA.players.find(p => p.name === 'Palmer' && p.team === 'CHE');
+const fxC = MK.fixtureFactor(palC, 0), fxD = MK.fixtureFactor(palC, 1);
+A(fxC.opp === 'HUL' && fxC.afdr === 2 && fxC.xf > 1 && fxC.xf !== fxD.xf,
+  'v36: Chelsea vs Hull(H) is graded as a genuinely easy fixture and each GW differs (HUL ' + fxC.xf + ' vs BRE ' + fxD.xf + ')');
+A(MK.projP(palC, 0) > MK.projP(palC, 0) * (MK.oppFixOf(palC, 0).bandXf / fxC.xf),
+  'v36: a green displayed fixture can no longer penalise xP (the old 3-band step is gone)');
+const htmlC = MK.crowdModelHtml(cIn, MK.crowdList(DATA.players, 'out', 4));
+A(!/NaN|undefined/.test(htmlC) && htmlC.indexOf('mp-row') >= 0, 'Market Pulse: crowd panel HTML is clean (no NaN, labelled rows)');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);

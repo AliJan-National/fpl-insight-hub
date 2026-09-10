@@ -46,6 +46,7 @@ function renderAll() {
   safe(renderCaptains, 'captains'); safe(renderPrices, 'prices');
   safe(renderLedger, 'ledger');
   safe(renderLabDigest, 'labDigest');
+  safe(renderMarketPulse, 'marketPulse');
 }
 
 // ============ Captain & Prices ============
@@ -851,6 +852,182 @@ function renderTeamLab(ids, squad, picksGw, bank, hist) {
     paint();
   };
   paint();
+}
+
+// ============ 🛰️ MARKET PULSE (v36) ============
+// "Where is the crowd going, and does our model agree?" — built ONLY from real
+// data we already ship: official FPL transfer momentum + ownership for the whole
+// population (players.json) and the real behaviour of the 40 tracked elite
+// managers (elite.json: per-GW bought/sold/owned/captained maps + their actual
+// chips). No social-media scraping: those platforms need paid keys/OAuth and a
+// static host cannot hold a secret. Every number is honest about its sample size.
+//
+// Pure core (crowdList / crowdVerdict / crowdSellVerdict / chipTrends / eliteFlow)
+// is deterministic and regression-tested; rendering is guarded at the call site.
+
+const CHIP_LABELS = { wildcard: 'Wildcard', freehit: 'Free Hit', bboost: 'Bench Boost', '3xc': 'Triple Captain' };
+
+// -------- what the WHOLE population is buying / selling this GW --------
+function crowdList(players, dir, n) {
+  const withM = (p) => {
+    let f = null;
+    try { f = (typeof forecastOf === 'function') ? forecastOf(p) : null; } catch (e) { f = null; }
+    return { p, f, net: (p.t_in || 0) - (p.t_out || 0), net3: (typeof hSumP === 'function') ? hSumP(p, 3) : 0 };
+  };
+  const rows = (players || []).filter(p => p && p.name).map(withM)
+    .sort((a, b) => dir === 'out' ? a.net - b.net : b.net - a.net);
+  return rows.slice(0, n || 10);
+}
+
+// -------- does our model back the crowd's buy? (deterministic verdict) --------
+function crowdVerdict(p, f) {
+  const st = (p && p.status) || 'a';
+  if (st !== 'a') return { tag: '⚠️ FLAG RISK', cls: 'warn', why: 'status "' + st + '" — the market may be buying a player who does not start' };
+  if (!f) return { tag: '— NO MODEL', cls: 'muted', why: 'not in the model catalog' };
+  const run = (typeof runAvg3Of === 'function') ? runAvg3Of(p) : 3;
+  if (f.conf && f.conf.lvl === 'LOW') return { tag: '⚠️ THIN DATA', cls: 'warn', why: 'low confidence — ' + esc(f.conf.why) };
+  if (run >= 3.4) return { tag: '⚠️ TOUGH RUN', cls: 'warn', why: 'next-3 adjusted difficulty ' + run.toFixed(1) + '/5 — buying the fixture too late' };
+  if (f.xp >= 7) return { tag: '✅ MODEL AGREES', cls: 'ok', why: 'top-tier model xP ' + f.xp.toFixed(1) + ' with ' + Math.round((f.minutes ? f.minutes.pStart : 0) * 100) + '% start odds' };
+  if (f.xp >= 5.5) return { tag: '🤝 FAIR VALUE', cls: 'mid', why: 'solid ' + f.xp.toFixed(1) + ' xP — a reasonable squad piece, not a standout' };
+  return { tag: '⚠️ CROWD AHEAD', cls: 'warn', why: 'model xP only ' + f.xp.toFixed(1) + ' — the market is ahead of the maths' };
+}
+// -------- and the crowd's sell? --------
+function crowdSellVerdict(p, f) {
+  if (!f) return { tag: '— NO MODEL', cls: 'muted', why: 'not in the model catalog' };
+  if (f.conf && f.conf.lvl === 'LOW') return { tag: '✅ AGREE', cls: 'ok', why: 'low confidence — ' + esc(f.conf.why) };
+  if (f.xp >= 6.5) return { tag: '⚠️ POSSIBLE MISTAKE', cls: 'warn', why: 'still projects ' + f.xp.toFixed(1) + ' xP — selling a good asset' };
+  if (f.xp >= 4.5) return { tag: '🤝 FAIR', cls: 'mid', why: f.xp.toFixed(1) + ' xP — fine to move on' };
+  return { tag: '✅ AGREE', cls: 'ok', why: 'only ' + f.xp.toFixed(1) + ' xP — the crowd is right to move on' };
+}
+
+// -------- which chip is being used most, and by how many (real elite cohort) --------
+function chipTrends(elite, ownChips, rivalChips, hasTeam) {
+  const es = (elite && elite.elites) || [];
+  const counts = {}, firstGw = {}, usedBy = {};
+  Object.keys(CHIP_LABELS).forEach(k => { counts[k] = 0; usedBy[k] = []; });
+  es.forEach(e => {
+    const ch = (e && e.chips) || {};
+    Object.keys(ch).forEach(gw => {
+      const k = ch[gw];
+      if (counts[k] == null) { counts[k] = 0; usedBy[k] = []; }
+      counts[k]++;
+      usedBy[k].push(e.entry);
+      if (firstGw[k] == null || +gw < firstGw[k]) firstGw[k] = +gw;
+    });
+  });
+  const sample = es.length;
+  const rows = Object.keys(CHIP_LABELS).map(k => ({
+    key: k, label: CHIP_LABELS[k], used: counts[k] || 0, hold: sample - (counts[k] || 0),
+    pct: sample ? Math.round(100 * (counts[k] || 0) / sample) : 0, firstGw: firstGw[k] == null ? null : firstGw[k],
+  })).sort((a, b) => b.used - a.used);
+  const own = (ownChips || []).map(k => CHIP_LABELS[k] || k);
+  const ownHold = Object.keys(CHIP_LABELS).map(k => CHIP_LABELS[k]).filter(l => own.indexOf(l) === -1);
+  return { sample, rows, top: rows[0] || null, own, ownHold, haveTeam: !!hasTeam,
+    rival: (rivalChips || []).map(k => CHIP_LABELS[k] || k) };
+}
+
+// -------- what the tracked elites actually bought / sold / captained at a GW --------
+function eliteFlow(elite, gw, players, n) {
+  const g = ((elite && elite.gw) || {})[String(gw)] || null;
+  const byId = {};
+  (players || []).forEach(p => { byId[p.id] = p; });
+  const top = (map, k) => Object.keys(map || {})
+    .map(id => ({ p: byId[+id] || null, id: +id, n: map[id] }))
+    .filter(x => x.p && x.n > 0)
+    .sort((a, b) => b.n - a.n || a.p.name.localeCompare(b.p.name))
+    .slice(0, k || 8);
+  if (!g) return { gw, n: 0, bought: [], sold: [], captained: [], owned: [] };
+  return {
+    gw, n: g.n || (elite && elite.meta && elite.meta.cohort) || 0,
+    bought: top(g.bought, n), sold: top(g.sold, n),
+    captained: top(g.cap, n), owned: top(g.own, n),   // same cap as the other lists
+  };
+}
+
+// -------- HTML builders --------
+function crowdRowHtml(r, dir) {
+  const p = r.p, f = r.f;
+  const v = dir === 'out' ? crowdSellVerdict(p, f) : crowdVerdict(p, f);
+  const nm = p.name, team = p.team || '';
+  const netTxt = (r.net >= 0 ? '+' : '−') + fmtK(Math.abs(r.net));
+  const xp = f ? f.xp.toFixed(1) : '—';
+  const p6 = f ? f.p6 + '%' : '—';
+  return `<div class="mp-row">
+    <div class="mp-top">
+      ${posBadge(p.pos)} <b>${esc(nm)}</b>
+      <span class="team-tag">${esc(team)} · £${(+p.cost || 0).toFixed(1)}m · ${p.own}% owned</span>
+      <span class="mp-net ${r.net >= 0 ? 'up' : 'down'}">${netTxt}</span>
+    </div>
+    <div class="mp-mid">
+      <span class="mp-chip ${v.cls}">${v.tag}</span>
+      <span class="mp-why">${v.why}</span>
+    </div>
+    <div class="mp-stats">
+      <span>model xP <b>${xp}</b></span><span>P(≥6) <b>${p6}</b></span>
+      <span>3-GW xP <b>${r.net3.toFixed(1)}</b></span>
+      <span>${f && f.conf ? 'conf <b>' + f.conf.lvl + '</b>' : ''}</span>
+    </div>
+  </div>`;
+}
+
+function crowdModelHtml(buys, sells) {
+  if ((!buys || !buys.length) && (!sells || !sells.length)) return '<p class="hint">No transfer data yet.</p>';
+  return `<div class="mp-cols">
+    <div><h4 class="mp-h up">▲ The crowd is buying — and our model says…</h4>${(buys || []).map(r => crowdRowHtml(r, 'in')).join('')}</div>
+    <div><h4 class="mp-h down">▼ The crowd is selling — and our model says…</h4>${(sells || []).map(r => crowdRowHtml(r, 'out')).join('')}</div>
+  </div>`;
+}
+
+function chipTrendsHtml(ct) {
+  if (!ct || !ct.sample) return '<p class="hint">Chip trends need the elite dataset.</p>';
+  const rows = ct.rows.map(r => `<div class="mp-chip-row">
+      <div class="mp-chip-name">${esc(r.label)}</div>
+      <div class="mp-bar"><div class="mp-bar-fill" style="width:${Math.max(2, r.pct)}%"></div></div>
+      <div class="mp-chip-num"><b>${r.used}</b>/${ct.sample} <span class="muted">(${r.pct}%)</span></div>
+      <div class="mp-chip-meta">${r.firstGw ? 'first used GW' + r.firstGw : 'unused'} · ${r.hold} still holding</div>
+    </div>`).join('');
+  const top = ct.top;
+  return `<div class="mp-headline">Most-used chip among the <b>${ct.sample}</b> tracked elite managers:
+      <span class="mp-chip ok">🃏 ${esc(top.label)}</span> — used by <b>${top.used} of ${ct.sample}</b> (${top.pct}%).</div>
+    ${rows}
+    <p class="hint" style="margin:10px 0 0">Sample = ${ct.sample} real top-ranked managers we track (not the whole ${((DATA.fplmeta||{}).total_players ? (DATA.fplmeta.total_players/1e6).toFixed(1)+'m' : '')} population — FPL publishes no global chip counter).${!ct.haveTeam ? ' <b>Load your team in My Team</b> to see your own chips next to this.' : (ct.own && ct.own.length ? ' Your chips used: <b>' + ct.own.map(esc).join(', ') + '</b>.' : ' You have not used any chips yet.') + (ct.ownHold && ct.ownHold.length ? ' You still hold: <b>' + ct.ownHold.map(esc).join(', ') + '</b>' + (ct.ownHold.length >= 3 ? ' — the crowd has mostly spent theirs, so holding is now a real edge.' : '.') : '')}${ct.rival && ct.rival.length ? ' Main rival has used: ' + ct.rival.map(esc).join(', ') + '.' : ''}</p>`;
+}
+
+function eliteFlowHtml(ef) {
+  if (!ef || !ef.n) return '<p class="hint">Elite flow needs a completed gameweek.</p>';
+  const list = (arr) => arr.length
+    ? arr.map(x => `<div class="mp-elite-row">
+        ${posBadge(x.p.pos)} <b>${esc(x.p.name)}</b> <span class="team-tag">${esc(x.p.team)} · £${(+x.p.cost || 0).toFixed(1)}m</span>
+        <span class="mp-count">${x.n}/${ef.n}</span></div>`).join('')
+    : '<p class="hint" style="margin:0">none</p>';
+  return `<div class="mp-cols">
+    <div><h4 class="mp-h up">▲ What the elites bought (GW${ef.gw})</h4>${list(ef.bought)}</div>
+    <div><h4 class="mp-h down">▼ What the elites sold (GW${ef.gw})</h4>${list(ef.sold)}</div>
+    <div><h4 class="mp-h">👑 Elite captains (GW${ef.gw})</h4>${list(ef.captained.slice(0, 6))}</div>
+    <div><h4 class="mp-h">📦 Most-owned by elites (GW${ef.gw})</h4>${list(ef.owned.slice(0, 6))}</div>
+  </div>`;
+}
+
+// -------- render (guarded at the call site) --------
+function renderMarketPulse() {
+  const host = $('#crowdModel');
+  if (!host) return;
+  const buys = crowdList(DATA.players, 'in', 8);
+  const sells = crowdList(DATA.players, 'out', 6);
+  host.innerHTML = crowdModelHtml(buys, sells);
+
+  const chipHost = $('#chipTrends');
+  if (chipHost) {
+    const ctx = window.TEAMCTX || null;
+    const own = ctx && ctx.usedChips ? ctx.usedChips : [];
+    const rival = (typeof ML !== 'undefined' && ML && ML.ready && ML.prim && ML.prim.chips) ? ML.prim.chips : [];
+    chipHost.innerHTML = chipTrendsHtml(chipTrends(DATA.elite, own, rival, !!ctx));
+  }
+  const flowHost = $('#eliteFlow');
+  if (flowHost) {
+    const gw = +(((DATA.elite || {}).meta || {}).latest_complete || DATA.meta.latest_gw || 0);
+    flowHost.innerHTML = eliteFlowHtml(eliteFlow(DATA.elite, gw, DATA.players, 8));
+  }
 }
 
 function renderLeague() {
@@ -2077,10 +2254,17 @@ function fixCalib() {
     });
     const byId = {}; (DATA.players || []).forEach(p => { byId[p.id] = p; });
     // pools measure RELATIVE response: ratio of band stats to the pool's own mean
-    const mk = () => ({ band: [{ n: 0, sum: 0, r6: 0 }, { n: 0, sum: 0, r6: 0 }, { n: 0, sum: 0, r6: 0 }], n: 0, sum: 0, r6: 0 });
+    const mk = () => ({ band: [{ n: 0, sum: 0, r6: 0, rSum: 0, rN: 0 }, { n: 0, sum: 0, r6: 0, rSum: 0, rN: 0 }, { n: 0, sum: 0, r6: 0, rSum: 0, rN: 0 }], n: 0, sum: 0, r6: 0 });
     const att = mk(), def = mk();
     const bandOf = rel => rel <= 0.86 ? 0 : rel <= 1.16 ? 1 : 2;
-    const push = (pool, b, pts) => { pool.n++; pool.sum += pts; if (pts >= 6) pool.r6++; pool.band[b].n++; pool.band[b].sum += pts; if (pts >= 6) pool.band[b].r6++; };
+    // v36: track the mean relative strength of each band so the fitted factors can
+    // be interpolated SMOOTHLY instead of applied as 3 hard steps (the step was why
+    // Hull(H), Brentford(A) and Bournemouth(H) all got the identical multiplier).
+    const push = (pool, b, pts, rel) => {
+      pool.n++; pool.sum += pts; if (pts >= 6) pool.r6++;
+      pool.band[b].n++; pool.band[b].sum += pts; if (pts >= 6) pool.band[b].r6++;
+      if (rel != null && isFinite(rel)) { pool.band[b].rSum += rel; pool.band[b].rN++; }
+    };
     for (const idStr of Object.keys(DATA.history)) {
       const pl = byId[+idStr]; if (!pl || !pl.team) continue;
       const pool = (pl.pos === 'GK' || pl.pos === 'DEF') ? def : att;
@@ -2093,13 +2277,14 @@ function fixCalib() {
         const rel = (pl.pos === 'GK' || pl.pos === 'DEF')
           ? meanXgf / Math.max(0.05, op.xgf / op.n)          // >1 => opp attack weak => easier
           : (op.xga / op.n) / meanXga;                       // >1 => opp defence leaky => easier
-        push(pool, bandOf(rel), r[1] || 0);
+        push(pool, bandOf(rel), r[1] || 0, rel);
       }
     }
     const fit = (pool, K) => {
       const totPts = pool.n ? pool.sum / pool.n : 0;
       const tot6 = pool.n ? pool.r6 / pool.n : 0;
-      const bands = pool.band.map(b => {
+      const DEF_C = [0.7, 1, 1.35];   // fallback centres (rel<0.86 / <=1.16 / else)
+      const bands = pool.band.map((b, bi) => {
         const n = b.n;
         let xf = 1, pf = 1;
         if (n && totPts > 0) {
@@ -2110,9 +2295,10 @@ function fixCalib() {
           const w = n / (n + K);
           pf = Math.max(0.55, Math.min(1.8, 1 + w * ((b.r6 / n) / tot6 - 1)));
         }
-        return { n, xf: Math.round(xf * 1000) / 1000, pf: Math.round(pf * 1000) / 1000 };
+        const c = b.rN ? b.rSum / b.rN : DEF_C[bi];
+        return { n, xf: Math.round(xf * 1000) / 1000, pf: Math.round(pf * 1000) / 1000, c: Math.round(c * 1000) / 1000, cN: b.rN };
       });
-      return { bands, n: pool.n };
+      return { bands, n: pool.n, bounds: [0.86, 1.16] };
     };
     res.att = fit(att, 12); res.def = fit(def, 12);
     res.mean = { meanXgf: Math.round(meanXgf * 1000) / 1000, meanXga: Math.round(meanXga * 1000) / 1000 };
@@ -2123,6 +2309,61 @@ function fixCalib() {
 }
 // per-player fixture response for GW index i (default 0 = next GW). Returns
 // {xf,pf,band,opp} or null when the opponent isn't known / no data yet.
+// ---- v36 SMOOTH FIXTURE GRADING -------------------------------------------------
+// The old model bucketed every opponent into TOUGH / NEUTRAL / EASY and applied ONE
+// fitted multiplier per bucket, so three different opponents in the same bucket were
+// indistinguishable (Hull(H), Brentford(A) and Bournemouth(H) all got x0.94) and a
+// fixture the app paints green could be penalised. fixSmooth interpolates between the
+// FITTED band anchors, so relative strength moves the multiplier continuously.
+function fixSmooth(bands, rel, key) {
+  if (!bands || !bands.length || rel == null || !isFinite(rel)) return 1;
+  const k = key || 'xf';
+  const cs = bands.map(b => (b.c == null ? NaN : b.c));
+  const ok = cs.every(x => isFinite(x)) && cs.every((x, i) => i === 0 || x > cs[i - 1]);
+  if (!ok) {                                  // noisy/degenerate centres -> safe step fallback
+    const b = rel <= 0.86 ? 0 : rel <= 1.16 ? 1 : 2;
+    return (bands[b] && bands[b][k] != null) ? bands[b][k] : 1;
+  }
+  if (rel <= cs[0]) return bands[0][k];
+  const last = cs.length - 1;
+  if (rel >= cs[last]) return bands[last][k];
+  for (let i = 1; i <= last; i++) {
+    if (rel <= cs[i]) {
+      const t = (rel - cs[i - 1]) / Math.max(1e-6, cs[i] - cs[i - 1]);
+      const v = bands[i - 1][k] + t * (bands[i][k] - bands[i - 1][k]);
+      return Math.round(v * 1000) / 1000;
+    }
+  }
+  return bands[last][k];
+}
+// ONE fixture voice for the whole app: the opponent-calibration multiplier (smooth)
+// blended GEOMETRICALLY with the adjusted difficulty the app DISPLAYS on the fixture
+// map / ticker (afx -> 1.15 / 1.08 / 1.00 / 0.92 / 0.85). Because both the points
+// estimate and the return probabilities read this single object, a green fixture can
+// no longer boost one surface while penalising another.
+// the displayed adjusted-difficulty -> multiplier table (identical to FM; kept as a
+// named lookup so this module also works in the isolated regression slices that do
+// not carry FM, and so the two can never silently drift apart)
+function fdrMultOf(afdr) {
+  const M = (typeof FM !== 'undefined' && FM && FM[3] === 1) ? FM : { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
+  return M[afdr] || 1;
+}
+function fixtureFactor(p, i) {
+  const f = (p && p.next3) ? (p.next3[i == null ? 0 : i] || null) : null;
+  const cal = oppFixOf(p, i);
+  const afdrRaw = f ? (f.afdr != null ? f.afdr : (f.adjv != null ? Math.round(f.adjv) : f.fdr)) : null;
+  const afdr = (afdrRaw == null) ? null : Math.max(1, Math.min(5, Math.round(afdrRaw)));
+  const drM = (afdr == null) ? null : fdrMultOf(afdr);
+  if (!cal) return null;
+  const xf = drM == null ? cal.xf : Math.sqrt(cal.xf * drM);
+  const pf = drM == null ? cal.pf : Math.sqrt(cal.pf * drM);
+  return {
+    xf: Math.round(Math.max(0.6, Math.min(1.6, xf)) * 1000) / 1000,
+    pf: Math.round(Math.max(0.5, Math.min(1.8, pf)) * 1000) / 1000,
+    band: cal.band, opp: cal.opp, rel: cal.rel, afdr, calXf: cal.xf, calPf: cal.pf,
+    src: drM == null ? 'calibration' : 'calibration+displayed-fdr',
+  };
+}
 function oppFixOf(p, i) {
   if (!p) return null;
   const ix = i == null ? 0 : i;
@@ -2134,11 +2375,16 @@ function oppFixOf(p, i) {
   const isDef = p.pos === 'GK' || p.pos === 'DEF';
   const team = (typeof osmByShort === 'function') ? osmByShort()[opp] : null;
   if (!team || !cal.mean) return null;
+  // higher rel == easier for this position (attacker: leaky opp defence; defender: weak opp attack)
   const rel = isDef ? cal.mean.meanXgf / Math.max(0.05, team.att) : team.xga / cal.mean.meanXga;
   const b = rel <= 0.86 ? 0 : rel <= 1.16 ? 1 : 2;
   const tab = isDef ? cal.def : cal.att;
   const blk = tab.bands[b];
-  return { xf: blk.xf, pf: blk.pf, band: ['tough', 'neutral', 'easy'][b], opp, n: blk.n };
+  const xf = fixSmooth(tab.bands, rel, 'xf');
+  const pf = fixSmooth(tab.bands, rel, 'pf');
+  return { xf, pf, band: ['tough', 'neutral', 'easy'][b], opp, n: blk.n,
+    bandXf: blk.xf, bandPf: blk.pf,          // the old step value (kept for the before/after diff)
+    rel: Math.round(rel * 1000) / 1000, mode: 'smooth' };
 }
 
 // per-GW model projection: blend(official ep, form) × form-adjusted FDR × H/A × minutes × reliability
@@ -2149,7 +2395,7 @@ const projP = (p, i) => {
   const ha = f ? f.ha : null;
   const minProb = startProb(p);
   const base = 0.55 * (p.ep_next || 0) + 0.45 * (p.form || 0);
-  const fx = oppFixOf(p, i);
+  const fx = (typeof fixtureFactor === 'function') ? fixtureFactor(p, i) : oppFixOf(p, i);
   const mult = fx ? fx.xf : (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1);
   return base * mult * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
 };
@@ -2259,8 +2505,10 @@ function playerProb(p, over) {
   const status = over && over.status != null ? over.status : (p.status || 'a');
   // v31 fixture-aware probabilities (B2): return chances respond to the opponent,
   // exactly like the xP already does — restores consistency inside forecastOf.
-  const oppFx = (typeof oppFixOf === 'function') ? oppFixOf(p, over && over.i != null ? over.i : 0) : null;
-  const key = p.id + '|' + mins + '|' + status + (oppFx ? '|' + oppFx.band + ':' + oppFx.opp : '');
+  const oppFx = (typeof fixtureFactor === 'function')
+    ? fixtureFactor(p, over && over.i != null ? over.i : 0)
+    : ((typeof oppFixOf === 'function') ? oppFixOf(p, over && over.i != null ? over.i : 0) : null);
+  const key = p.id + '|' + mins + '|' + status + (oppFx ? '|' + oppFx.band + ':' + oppFx.opp + ':' + (oppFx.afdr == null ? '-' : oppFx.afdr) : '');
   if (PP_MEMO[key]) return PP_MEMO[key];
   const scores = ppScores(p);
   const n = scores.length;
