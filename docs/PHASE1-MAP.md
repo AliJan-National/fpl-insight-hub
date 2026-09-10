@@ -1,7 +1,8 @@
 # FPL Insight Hub — v2.0 Phase 1 Map
 
-**Status: tranche 1 complete. `app.js` is byte-identical to the pre-refactor file** — the split is proven by 
-`node build.js --check` and by test 6 in `tests/run.js`. Zero user-visible change, zero maths change.
+**Status: tranche 1 complete (app.js byte-identical to the pre-refactor file, proven by test 6).**
+Tranche 2 added `src/models/minutes.js` (Phase 2 minutes engine, NOT in production — see
+`docs/PHASE2-MINUTES.md`); app.js is now the manifest concatenation including that module.
 
 ## The rule from now on
 
@@ -18,6 +19,7 @@
 | 3 | `src/intelligence/visuals.js` | 1034–1382 | 22,399 | Visuals v37 (market map, elite gap, chip timeline, bargain map) |
 | 4 | `src/legacy/part-b.js` | 1383–2479 | 80,934 | opponent-strength, wildcard lab, decision matrix, assistant, mini league, pro suite |
 | 5 | `src/models/fixture.js` | 2480–2657 | 9,692 | fixture-response model (calibration, smooth grading, projP base) |
+| 5b | `src/models/minutes.js` | NEW (Phase 2) | ~4,700 | minutesV2 ladder — built beside legacy, not yet in production |
 | 6 | `src/models/projection.js` | 2658–3210 | 32,870 | ONE FORECAST OBJECT spine (forecastOf, minutes, probabilities) |
 | 7 | `src/validation/backtest.js` | 3211–3349 | 9,477 | backtest lab (leakage-free, out-of-sample) |
 | 8 | `src/validation/scorecard.js` | 3350–3566 | 17,543 | xP measurement vs baselines (official EP, form, history) |

@@ -238,13 +238,33 @@ A(bmS.indexOf('<svg') === 0 && !/NaN|undefined/.test(bmS) && bmS.indexOf('fair-v
   'v37 bargain map: SVG renders with the legend explaining the curve');
 
 // ---------- 6. PHASE 1 (v2 refactor): app.js must be the exact concatenation of src/ ----------
-const MANIFEST6 = ['src/legacy/part-a.js','src/intelligence/market.js','src/intelligence/visuals.js','src/legacy/part-b.js','src/models/fixture.js','src/models/projection.js','src/validation/backtest.js','src/validation/scorecard.js','src/intelligence/elite.js','src/boot.js'];
+let MANIFEST6 = [];
+try { MANIFEST6 = (fs.readFileSync(path.join(ROOT, 'build.js'), 'utf8').match(/MANIFEST\s*=\s*\[([\s\S]*?)\]/) || [])[1].match(/'([^']+)'/g).map(s => s.slice(1, -1)); } catch (e) {}
 let built6 = MANIFEST6.map(f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (e) { return null; } });
-if (built6.some(x => x === null)) {
-  A(false, 'Phase 1 structure: src/ manifest files are all present in the repo');
+if (!MANIFEST6.length || built6.some(x => x === null)) {
+  A(false, 'Phase 1 structure: build.js manifest is readable and all src/ files exist (' + MANIFEST6.length + ' files)');
 } else {
-  A(built6.join('') === app, 'Phase 1 structure: app.js is byte-identical to the src/ manifest concatenation (zero runtime change by construction)');
+  A(built6.join('') === app, 'Phase 1 structure: app.js is byte-identical to the build.js manifest concatenation (' + MANIFEST6.length + ' modules, zero drift)');
 }
+
+// ---------- 7. MINUTES V2 (Phase 2): the selection/minutes ladder, pre-deadline only ----------
+const MVS = slice('// ============ 👟 MINUTES V2', '// ============ ONE FORECAST OBJECT');
+(0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + MVS + '\nglobalThis.__MV2 = minutesV2; })()');
+const mv2 = globalThis.__MV2;
+const byName7 = n => DATA.players.find(p => p.name === n);
+const halM = mv2(byName7('Haaland'));
+A(halM.pStart >= 0.9 && halM.p90 >= 0.75 && halM.p90 <= halM.p75 && halM.p75 <= halM.p60 && halM.p60 <= halM.pStart,
+  'Minutes V2: nailed 3x90 starter (Haaland) -> pStart ' + halM.pStart + ', p90 ' + halM.p90 + ', ladder monotonic');
+A(mv2(byName7('Wieffer')).pStart <= 0.05 && mv2(byName7('Gomes')).pStart <= 0.05,
+  'Minutes V2: injured and suspended players can never be starters (Wieffer ' + mv2(byName7('Wieffer')).pStart + ', Gomes ' + mv2(byName7('Gomes')).pStart + ')');
+A(mv2(byName7('Isidor')).pStart <= 0.15 && mv2(byName7('Isidor')).expectedMinutes <= 30,
+  'Minutes V2: a 23-26-26 cameo player is a bench piece (pStart ' + mv2(byName7('Isidor')).pStart + ' — the legacy model said 0.39)');
+const colM = mv2(byName7('Collins'));
+A(colM.pStart <= 0.05 + 0.9 * 0.25 + 0.02 && colM.evidence.some(e => /official 25% chance/.test(e)),
+  'Minutes V2: the official 25% chance-to-play gates the projection and is cited in evidence');
+let bad7 = 0;
+DATA.players.forEach(p => { const r = mv2(p); if (!(isFinite(r.pStart) && r.p90 <= r.p75 && r.p75 <= r.p60 && r.p60 <= r.pStart && r.expectedMinutes >= 0 && r.evidence.length)) bad7++; });
+A(bad7 === 0, 'Minutes V2: full-pool sweep — ' + DATA.players.length + ' players, monotonic ladder, finite values, evidence on every row');
 
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
