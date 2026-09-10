@@ -31,7 +31,7 @@ No decision surface consumes it yet — it is the feed the Phase-5 event model n
 - Top attacks (opponent-adjusted): **BHA 1.28 · MUN 1.19 · BRE 1.18 · CHE 1.13 · MCI 1.12**
 - Best defences: **ARS 0.75 · MCI 0.86 · LEE 0.86** (lower = better)
 - Home/away tilts legacy cannot see: MUN attack 1.74 at home vs 1.04 away
-- GW4 feed: CHE–HUL **1.57–1.14**, LIV–BOU 1.64–1.46, ARS–EVE 1.65–0.70
+- Sample pairings from the ratings (any two real clubs): CHE–HUL **1.57–1.14**, LIV–BOU 1.64–1.46, ARS–EVE 1.65–0.70. (An earlier draft quoted MUN–WHU 1.38–1.33 — that was the league-average fallback firing: there is no WHU in this league. Corrected.)
 - Calibration: predicted totals 48.0–37.0 vs actual 48–37 (exact after correction)
 - Rank agreement with legacy osmBuild: Spearman **0.941** — an evolution, not a random walk
 

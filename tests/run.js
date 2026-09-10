@@ -286,6 +286,24 @@ const cheHul = tsr.expectedGoals('CHE', 'HUL');
 A(cheHul.hg > cheHul.ag && cheHul.hg > 1.2 && cheHul.ag < 1.4,
   'Team Strength V2: CHE vs HUL grades ' + cheHul.hg + '-' + cheHul.ag + ' (clear home favourite — the Phase-5 event feed works)');
 
+// ---------- 9. FIXTURE DIFFICULTY V2 (Phase 4): position-aware grades ----------
+const FXS = slice('// ============ 🧭 FIXTURE DIFFICULTY V2', '// ============ ONE FORECAST OBJECT');
+(0, eval)('(function(){ ' + FXS + '\nglobalThis.__FX = { fixtureDifficultyV2, posFixGrade, teamRatingsV2 }; })()');
+const FX = globalThis.__FX;
+const cheFx = FX.fixtureDifficultyV2('CHE', 'HUL', 'H');
+A(['FWD', 'MID', 'DEF', 'GK'].every(k => cheFx.pos[k].score >= 1 && cheFx.pos[k].score <= 5 && cheFx.pos[k].why),
+  'Fixture V2: all four positions graded with reasons (CHE v HUL: FWD ' + cheFx.pos.FWD.score + ', DEF ' + cheFx.pos.DEF.score + ')');
+const ts = ['ARS','AVL','BHA','BOU','BRE','CHE','COV','CRY','EVE','FUL','HUL','IPS','LEE','LIV','MCI','MUN','NEW','NFO','SUN','TOT'];
+let fxBad = 0;
+ts.forEach(h => ts.forEach(a => { if (h !== a) ['H','A'].forEach(ha => { const d = FX.fixtureDifficultyV2(h, a, ha); if (!d.pos.FWD || !isFinite(d.pos.FWD.score)) fxBad++; }); }));
+A(fxBad === 0, 'Fixture V2: all 760 team/opponent/venue combinations grade cleanly, unknown pairs fall back to neutral 3');
+const fxSpread = FX.fixtureDifficultyV2('MUN', 'MCI', 'H');
+A(fxSpread.pos.FWD.score < 2.2 && fxSpread.pos.DEF.score > 4.2,
+  'Fixture V2: MUN v MCI is easy for attackers (' + fxSpread.pos.FWD.score + ') but brutal for defenders (' + fxSpread.pos.DEF.score + ') — one number is not enough');
+const fxPal = FX.posFixGrade(DATA.players.find(p => p.name === 'Palmer'), 0);
+A(fxPal.opp === 'HUL' && fxPal.score < 2.6 && fxPal.all && fxPal.all.GK.score > fxPal.all.FWD.score,
+  'Fixture V2: player bridge — Palmer GW4 ' + fxPal.score + ' (MID lens), same fixture graded GK ' + fxPal.all.GK.score + ' (positions differ)');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);
