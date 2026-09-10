@@ -266,6 +266,26 @@ let bad7 = 0;
 DATA.players.forEach(p => { const r = mv2(p); if (!(isFinite(r.pStart) && r.p90 <= r.p75 && r.p75 <= r.p60 && r.p60 <= r.pStart && r.expectedMinutes >= 0 && r.evidence.length)) bad7++; });
 A(bad7 === 0, 'Minutes V2: full-pool sweep — ' + DATA.players.length + ' players, monotonic ladder, finite values, evidence on every row');
 
+// ---------- 8. TEAM STRENGTH V2 (Phase 3): ratings, shrinkage, calibration ----------
+const TSS = slice('// ============ 🏟️ TEAM STRENGTH V2', '// ============ ONE FORECAST OBJECT');
+(0, eval)('(function(){ ' + TSS + '\nglobalThis.__TS = teamRatingsV2; })()');
+const tsr = globalThis.__TS();
+const tvals = Object.values(tsr.teams);
+A(tvals.length === 20 && tvals.every(t => isFinite(t.att) && isFinite(t.def) && t.att > 0 && t.def > 0),
+  'Team Strength V2: ratings for all 20 teams, finite and positive');
+let shrViol = 0;
+tvals.forEach(t => { const rawM = t.attRaw / tsr.league.meanAtt; if (Math.abs(t.attShr - 1) > Math.abs(rawM - 1) + 1e-9) shrViol++; });
+A(shrViol === 0, 'Team Strength V2: audit shrinkage schedule holds — every raw rating pulled toward the mean at n=3 (w = n/(n+7))');
+const tsChanged = tvals.filter(t => Math.abs(t.att - t.attShr) > 0.005).length;
+A(tsChanged >= 10, 'Team Strength V2: opponent adjustment moves ratings for ' + tsChanged + '/20 teams (strength of schedule is real)');
+let tsH = 0, tsA = 0, taH = 0, taA = 0;
+DATA.results.forEach(m => { const g = tsr.expectedGoals(m.home, m.away); tsH += g.hg; tsA += g.ag; taH += m.hs; taA += m.as_; });
+A(Math.abs(tsH - taH) / taH <= 0.03 && Math.abs(tsA - taA) / taA <= 0.03,
+  'Team Strength V2: calibrated — predicted goals ' + tsH.toFixed(1) + '-' + tsA.toFixed(1) + ' vs actual ' + taH + '-' + taA + ' over the ' + DATA.results.length + ' real matches');
+const cheHul = tsr.expectedGoals('CHE', 'HUL');
+A(cheHul.hg > cheHul.ag && cheHul.hg > 1.2 && cheHul.ag < 1.4,
+  'Team Strength V2: CHE vs HUL grades ' + cheHul.hg + '-' + cheHul.ag + ' (clear home favourite — the Phase-5 event feed works)');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);

@@ -15,7 +15,7 @@ const els = {};
 global.document = { querySelector: s => { const k = String(s).replace(/^#/, ''); if (!els[k]) els[k] = { innerHTML: '', textContent: '', value: '', checked: false, style: {}, dataset: {}, onclick: null, classList: { add() {}, remove() {}, contains: () => false }, addEventListener() {}, click() {} }; return els[k]; }, querySelectorAll: () => [] };
 global.$$ = () => [];
 const app = fs.readFileSync('app.js', 'utf8');
-(0, eval)(app + '\nDATA = global.DATA;\n(function(){ (DATA.players||[]).forEach(p => { const a=((window.TF[p.team]||{}).afx)||[]; (p.next3||[]).forEach((f,i)=>{ if(a[i]!=null){ f.adjv=a[i]; f.afdr=Math.max(1,Math.min(5,Math.round(a[i]))); } }); }); })();\nglobalThis.__M = { minutesV2, startProb, minutesOf };');
+(0, eval)(app + '\nDATA = global.DATA;\n(function(){ (DATA.players||[]).forEach(p => { const a=((window.TF[p.team]||{}).afx)||[]; (p.next3||[]).forEach((f,i)=>{ if(a[i]!=null){ f.adjv=a[i]; f.afdr=Math.max(1,Math.min(5,Math.round(a[i]))); } }); }); })();\nglobalThis.__M = { minutesV2, startProb, minutesOf, V2M_MEMO, SEL_MEMO, MIN_MEMO };');
 const M = globalThis.__M;
 const A = (c, m) => { if (!c) { console.error('FAIL |', m); process.exitCode = 1; } else console.log('PASS |', m); };
 const find = n => DATA.players.find(p => p.name === n);
@@ -90,4 +90,39 @@ console.log('player            | legacy pStart | V2 pStart | V2 p60 | V2 p90 | l
 const show = n => { const p = find(n); const l = M.startProb(p), lo = M.minutesOf(p), v = M.minutesV2(p);
   console.log(p.name.padEnd(17) + '|     ' + l.toFixed(2) + '      |   ' + v.pStart.toFixed(2) + '   |  ' + v.p60.toFixed(2) + '  |  ' + v.p90.toFixed(2) + '  |      ' + String(lo.expMin).padEnd(4) + '     |    ' + String(v.expectedMinutes).padEnd(4) + '  |  ' + v.confidence.overall); };
 ['Haaland', 'B.Fernandes', 'Tzolakis', 'Cherki', 'Munoz', 'Mukiele', 'Mainoo', 'Wieffer', 'Gomes', 'Isidor', 'Šeško', 'J.Ramsey', 'Collins', 'Mosquera'].forEach(show);
+
+// ---------- GW4+ AUTO-GATE: legacy vs V2 minutes on the latest completed GW (holdout) ----------
+// Arms automatically once history.json contains a 4th gameweek (after the GW4
+// deadline + data refresh). Trains BOTH models on gw < L only, then scores them
+// against the real GW-L minutes. Disclosed limitation: players.json status /
+// chance_next fields are the CURRENT (post-refresh) values for both models alike.
+const allRows = Object.values(DATA.history).flat();
+const maxGw = allRows.length ? Math.max.apply(null, allRows.map(r => r[0] || 0)) : 0;
+if (maxGw >= 4) {
+  const L = maxGw;
+  const fullHist = DATA.history;
+  const stripped = {};
+  Object.entries(fullHist).forEach(([id, rows]) => { const k = rows.filter(r => (r[0] || 0) < L); if (k.length) stripped[id] = k; });
+  const clearMemos = () => { [M.V2M_MEMO, M.SEL_MEMO, M.MIN_MEMO].forEach(mem => Object.keys(mem).forEach(k => delete mem[k])); };
+  DATA.history = stripped; clearMemos();
+  const sample = DATA.players.filter(p => (fullHist[p.id] || []).some(r => (r[0] || 0) === L));
+  let bL = 0, bV = 0, maeL = 0, maeV = 0, n = 0;
+  sample.forEach(p => {
+    const act = (fullHist[p.id] || []).filter(r => (r[0] || 0) === L)[0][4] || 0;
+    const started = act >= 60 ? 1 : 0;
+    const preMins = (stripped[p.id] || []).reduce((sm, r) => sm + (r[4] || 0), 0);
+    const psL = M.startProb(p, { mins: preMins, status: p.status });   // legacy fed its pre-deadline mins
+    const v2 = M.minutesV2(p);
+    bL += (psL - started) ** 2; bV += (v2.pStart - started) ** 2;
+    maeL += Math.abs(M.minutesOf(p).expMin - act); maeV += Math.abs(v2.expectedMinutes - act);
+    n++;
+  });
+  DATA.history = fullHist; clearMemos();
+  bL /= n; bV /= n; maeL /= n; maeV /= n;
+  A(n > 100 && isFinite(bL) && isFinite(bV) && isFinite(maeL) && isFinite(maeV),
+    'GW' + L + ' HOLDOUT A/B (' + n + ' players): start-probability Brier  legacy ' + bL.toFixed(4) + '  vs  V2 ' + bV.toFixed(4) + '   |   expected-minutes MAE  legacy ' + maeL.toFixed(1) + '  vs  V2 ' + maeV.toFixed(1) + '   (lower = better)');
+  console.log('GATE  | Switch decision for the production minutes spine is made from these numbers — see docs/PHASE2-MINUTES.md. Limitation: status/chance fields are current, applied to both models alike.');
+} else {
+  console.log('SKIP  | GW4 A/B gate not armed yet: history.json latest complete GW is ' + maxGw + ' (GW4 deadline 12 Sep 12:30 + data refresh needed). It runs automatically once GW4 data lands.');
+}
 console.log('\ndone.');
