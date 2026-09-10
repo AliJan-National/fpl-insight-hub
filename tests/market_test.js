@@ -2,7 +2,7 @@
 // Real-data harness: crowd lists, verdicts, chip trends and elite flow are all
 // computed from api/players.json + api/elite.json through the app's own spine.
 const fs = require('fs');
-const j = f => JSON.parse(fs.readFileSync('fpl_dashboard/api/' + f, 'utf8'));
+const j = f => JSON.parse(fs.readFileSync('api/' + f, 'utf8'));
 const DATA = { meta: j('meta.json'), league: j('league.json'), results: j('results.json'), players: j('players.json'),
   radar: j('radar.json'), fixtures: j('fixtures.json'), news: j('news.json'), captains: j('captains.json'),
   prices: j('prices.json'), fplmeta: j('fplmeta.json'), ticker: j('ticker.json'), teams: j('teams.json'),
@@ -15,7 +15,7 @@ global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () =
 const ch = {};
 global.document = { querySelector: s => { const k = String(s).replace(/^#/, ''); if (!ch[k]) ch[k] = { innerHTML: '', textContent: '', style: {}, dataset: {}, classList: { add() {}, remove() {}, contains: () => false }, addEventListener() {}, click() {} }; return ch[k]; }, querySelectorAll: () => [] };
 global.$$ = () => [];
-const app = fs.readFileSync('fpl_dashboard/app.js', 'utf8');
+const app = fs.readFileSync('app.js', 'utf8');
 (0, eval)(app + '\nDATA = global.DATA;\n(function(){ (DATA.players||[]).forEach(p => { const a=((window.TF[p.team]||{}).afx)||[]; (p.next3||[]).forEach((f,i)=>{ if(a[i]!=null){ f.adjv=a[i]; f.afdr=Math.max(1,Math.min(5,Math.round(a[i]))); } }); }); })();\nglobalThis.__P = { crowdList, crowdVerdict, crowdSellVerdict, chipTrends, eliteFlow, crowdModelHtml, chipTrendsHtml, eliteFlowHtml, renderMarketPulse, forecastOf, hSumP, fixSmooth, fixtureFactor, oppFixOf, projP, fmtK, CHIP_LABELS };');
 const P = globalThis.__P;
 const A = (c, m) => { if (!c) { console.error('FAIL |', m); process.exitCode = 1; } else console.log('PASS |', m); };

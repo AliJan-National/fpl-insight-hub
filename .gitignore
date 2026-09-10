@@ -1,0 +1,2 @@
+# never commit release zips (they are downloaded to D:\10. Deepseek\Arena Ai)
+*.zip

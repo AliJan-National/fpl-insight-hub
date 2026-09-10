@@ -1,5 +1,5 @@
 /* ============================================================
-   FPL Insight Hub — v36 Elite design system (Market Pulse + smooth fixture grading)
+   FPL Insight Hub — v37 Elite design system (visual layer: market map, elite gap, chip timeline, bargain map)
    Zero-build, single file, no external assets.
    Aesthetic: deep-space "mission control" — layered aurora
    canvas, glass surfaces, one action accent (green), refined
@@ -623,3 +623,13 @@ footer {
 .mp-elite-row:last-child { border-bottom: none; }
 .mp-count { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--green-soft);
   background: rgba(0,255,133,.12); border-radius: 999px; padding: 1px 9px; font-size: 11.5px; }
+
+
+/* ===== 🛰️ VISUALS (v37): gap bars + chart hints ===== */
+.vg-gap-row { padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.055); }
+.vg-gap-row:last-child { border-bottom: none; }
+.vg-gap-name { font-size: 12.5px; margin-bottom: 5px; }
+.vg-gap-bars { display: grid; grid-template-columns: 38px 1fr 34px 38px 1fr 40px; gap: 7px; align-items: center; }
+.vg-lab { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.vg-num { font-size: 11px; font-variant-numeric: tabular-nums; color: #d9ccf5; text-align: right; }
+.mp-bar-fill.alt { background: linear-gradient(90deg, #8e5bff, #b18cff); box-shadow: 0 0 12px -3px rgba(177,140,255,.7); }

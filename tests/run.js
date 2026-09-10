@@ -211,6 +211,32 @@ A(MK.projP(palC, 0) > MK.projP(palC, 0) * (MK.oppFixOf(palC, 0).bandXf / fxC.xf)
 const htmlC = MK.crowdModelHtml(cIn, MK.crowdList(DATA.players, 'out', 4));
 A(!/NaN|undefined/.test(htmlC) && htmlC.indexOf('mp-row') >= 0, 'Market Pulse: crowd panel HTML is clean (no NaN, labelled rows)');
 
+// ---------- 5f. VISUALS (v37): crowd map, elite gap, chip timeline, bargain map ----------
+const VS = slice('// ============ 🛰️ VISUALS (v37)', 'function renderLeague()');
+const VK = (0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + FM + '\n' + osmBlock + '\n' + spine + '\n' + VS + '\nreturn { crowdMapLayout, crowdMapSVG, eliteGapData, chipTimelineData, chipTimelineSVG, bargainLayout, bargainMapSVG }; })()');
+const cmL = VK.crowdMapLayout(DATA.players);
+A(cmL.dots.length > 80 && cmL.dots.every(d => ['buy','fomo','radar','fade'].includes(d.q)),
+  'v37 crowd map: ' + cmL.dots.length + ' players plotted, every dot in exactly one quadrant');
+A(cmL.dots.filter(d => d.q === 'buy').every(d => d.net >= cmL.medNet && d.xp >= 5.5) &&
+  cmL.dots.filter(d => d.q === 'fomo').every(d => d.net >= cmL.medNet && d.xp < 5.5),
+  'v37 crowd map: the vertical split is the SAME 5.5-xP bar the verdict rows use (chart and text cannot disagree)');
+const cmS = VK.crowdMapSVG(DATA.players);
+A(cmS.indexOf('<svg') === 0 && !/NaN|undefined/.test(cmS) && (cmS.match(/<circle/g) || []).length === cmL.dots.length,
+  'v37 crowd map: SVG draws every dot cleanly with hover tooltips');
+const egD = VK.eliteGapData(DATA.elite, DATA.players, 10);
+A(egD.n === 40 && egD.rows.length === 10 && egD.rows.every(r => r.delta === r.elitePct - r.crowdPct && r.elitePct >= 0 && r.elitePct <= 100),
+  'v37 elite gap: top-10 ownership gaps between the 40 elites and the whole population');
+const tlD = VK.chipTimelineData(DATA.elite);
+const tlRaw = {}; DATA.elite.elites.forEach(e => Object.values(e.chips || {}).forEach(k => tlRaw[k] = (tlRaw[k] || 0) + 1));
+A(tlD.chips.every(c => c.used === (tlRaw[c.key] || 0) && Object.entries(c.marks).reduce((s, [g, n]) => s + n, 0) === c.used && c.used + c.hold === 40),
+  'v37 chip timeline: markers sum to the real per-chip totals (38/31/30/4 of 40), still-holding included');
+const bmL = VK.bargainLayout(DATA.players);
+A(bmL.pts.length > 100 && bmL.curve.every(c => c.n >= 4) && bmL.pts.filter(r => r.bucketMed != null).every(r => r.above === (r.xp > r.bucketMed)),
+  'v37 bargain map: fair-value curve uses only 4+-player price buckets; above/below classification is exact');
+const bmS = VK.bargainMapSVG(DATA.players);
+A(bmS.indexOf('<svg') === 0 && !/NaN|undefined/.test(bmS) && bmS.indexOf('fair-value curve') >= 0,
+  'v37 bargain map: SVG renders with the legend explaining the curve');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);
