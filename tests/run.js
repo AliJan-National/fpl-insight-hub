@@ -237,6 +237,15 @@ const bmS = VK.bargainMapSVG(DATA.players);
 A(bmS.indexOf('<svg') === 0 && !/NaN|undefined/.test(bmS) && bmS.indexOf('fair-value curve') >= 0,
   'v37 bargain map: SVG renders with the legend explaining the curve');
 
+// ---------- 6. PHASE 1 (v2 refactor): app.js must be the exact concatenation of src/ ----------
+const MANIFEST6 = ['src/legacy/part-a.js','src/intelligence/market.js','src/intelligence/visuals.js','src/legacy/part-b.js','src/models/fixture.js','src/models/projection.js','src/validation/backtest.js','src/validation/scorecard.js','src/intelligence/elite.js','src/boot.js'];
+let built6 = MANIFEST6.map(f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (e) { return null; } });
+if (built6.some(x => x === null)) {
+  A(false, 'Phase 1 structure: src/ manifest files are all present in the repo');
+} else {
+  A(built6.join('') === app, 'Phase 1 structure: app.js is byte-identical to the src/ manifest concatenation (zero runtime change by construction)');
+}
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);
