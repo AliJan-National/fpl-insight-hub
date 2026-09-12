@@ -31,8 +31,11 @@ For each of the next 3 gameweeks it builds the best legal Free Hit squad:
 
 ## Real numbers (GW4-6, this dataset)
 
-GW4 **91.9** xP (best) · GW5 87.5 · GW6 90.0. GW4 wins: Liverpool–Fulham and
+GW4 **92.4** xP (best) · GW5 89.2 · GW6 90.0. GW4 wins: Liverpool–Fulham and
 Chelsea–Hull are the standout fixtures; captain Gakpo (10.5 vs FUL).
+*(Re-priced in v42 after the user caught the model starting Tzolakis — a GK away
+at Chelsea: GK/DEF fixtures are now priced by clean-sheet structure. The GW4
+Free Hit keeper is Trafford, home to Newcastle.)*
 
 ## Files changed
 

@@ -123,6 +123,42 @@ function fdrMultOf(afdr) {
   const M = (typeof FM !== 'undefined' && FM && FM[3] === 1) ? FM : { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
   return M[afdr] || 1;
 }
+// ============ 🧤 GK/DEF STRUCTURAL FIXTURE RESPONSE (v42) ============
+// A GK's points are mostly SITUATION: 2 for playing + 4 x P(clean sheet) + save
+// points (which cushion busy games) - 1 per 2 conceded. The outfield-style
+// "baseline x small multiplier" cannot represent that: a hot save-machine
+// baseline transferred almost unchanged into an elite-attack fixture (the
+// Tzolakis-at-Chelsea flaw), and easy fixtures barely lifted quiet keepers.
+// These helpers price GK/DEF fixtures from the SAME real inputs the model
+// already trusts: opponent attack rate + own defence rate (OSM), league
+// scoring (results.json) and home/away — no new data, no new network calls.
+function fxLeagueGoals() {  // real goals per team per game
+  const ms = (DATA.results || []).filter(m => m && m.home);
+  if (!ms.length) return 1.4;
+  const tot = ms.reduce((sm, m) => sm + (m.hs || 0) + (m.as_ || 0), 0);
+  return Math.max(0.8, Math.min(2.4, tot / (ms.length * 2)));
+}
+function fxXgaOf(p, i) {    // expected goals conceded by p's team in fixture i
+  const cal = (typeof fixCalib === 'function') ? fixCalib() : null;
+  const f = (p.next3 || [])[i == null ? 0 : i] || null;
+  if (!cal || !cal.mean || !f || !f.opp) return null;
+  const osm = (typeof osmByShort === 'function') ? osmByShort() : null;
+  const opp = osm ? osm[f.opp] : null, own = osm ? osm[p.team] : null;
+  if (!opp || !own) return null;
+  const oppAttRel = Math.max(0.4, Math.min(2.6, opp.att / Math.max(0.05, cal.mean.meanXgf)));
+  const ownDefRel = Math.max(0.4, Math.min(2.6, own.xga / Math.max(0.05, cal.mean.meanXga)));
+  const xga = fxLeagueGoals() * oppAttRel * ownDefRel * (f.ha === 'H' ? 0.88 : f.ha === 'A' ? 1.12 : 1);
+  return Math.round(Math.max(0.3, Math.min(3.2, xga)) * 100) / 100;
+}
+function gkStructXp(xga) {  // structural GK value: play+bonus, clean sheet, saves, conceding
+  return 2.3 + 4 * Math.exp(-xga) + 0.27 * xga;
+}
+function defPosAdjOf(xga) { // clean-sheet multiplier for defenders (60% strength, clamped)
+  const lg = fxLeagueGoals();
+  const cs = Math.exp(-xga), csL = Math.exp(-lg);
+  const val = 2 + 4 * cs - 0.5 * xga, valL = 2 + 4 * csL - 0.5 * lg;
+  return Math.max(0.85, Math.min(1.15, 1 + 0.6 * (val / valL - 1)));
+}
 function fixtureFactor(p, i) {
   const f = (p && p.next3) ? (p.next3[i == null ? 0 : i] || null) : null;
   const cal = oppFixOf(p, i);
@@ -130,12 +166,18 @@ function fixtureFactor(p, i) {
   const afdr = (afdrRaw == null) ? null : Math.max(1, Math.min(5, Math.round(afdrRaw)));
   const drM = (afdr == null) ? null : fdrMultOf(afdr);
   if (!cal) return null;
-  const xf = drM == null ? cal.xf : Math.sqrt(cal.xf * drM);
+  const xfRaw = drM == null ? cal.xf : Math.sqrt(cal.xf * drM);
   const pf = drM == null ? cal.pf : Math.sqrt(cal.pf * drM);
+  // v42: defender fixtures priced by clean-sheet structure too (CS is most of a
+  // defender's swing; the outfield multiplier alone under-reacts to it)
+  const xga = (p && p.pos === 'DEF') ? fxXgaOf(p, i) : null;
+  const defAdj = xga != null ? defPosAdjOf(xga) : 1;
+  const xf = xfRaw * defAdj;
   return {
-    xf: Math.round(Math.max(0.6, Math.min(1.6, xf)) * 1000) / 1000,
+    xf: Math.round(Math.max(0.55, Math.min(1.7, xf)) * 1000) / 1000,
     pf: Math.round(Math.max(0.5, Math.min(1.8, pf)) * 1000) / 1000,
     band: cal.band, opp: cal.opp, rel: cal.rel, afdr, calXf: cal.xf, calPf: cal.pf,
+    defAdj: Math.round(defAdj * 1000) / 1000, xga,
     src: drM == null ? 'calibration' : 'calibration+displayed-fdr',
   };
 }
@@ -172,7 +214,15 @@ const projP = (p, i) => {
   const base = 0.55 * (p.ep_next || 0) + 0.45 * (p.form || 0);
   const fx = (typeof fixtureFactor === 'function') ? fixtureFactor(p, i) : oppFixOf(p, i);
   const mult = fx ? fx.xf : (FM[Math.max(1, Math.min(5, Math.round(a)))] || 1);
-  return base * mult * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
+  let out = base * mult * (ha === 'H' ? 1.06 : ha === 'A' ? 0.94 : 1) * minProb * (0.6 + 0.4 * reliab(p));
+  // v42: GK projections are mostly SITUATION (play + CS + saves - conceding).
+  // 70% structural / 30% personal — a hot baseline no longer rides through an
+  // elite-attack fixture, and easy fixtures lift quiet keepers.
+  if (p.pos === 'GK') {
+    const xga = fxXgaOf(p, i);
+    if (xga != null) out = Math.max(1.0, Math.min(6.5, 0.30 * out + 0.70 * gkStructXp(xga) * Math.max(0.4, minProb)));
+  }
+  return out;
 };
 const hSumP = (p, H) => { let s = 0; for (let i = 0; i < H; i++) s += projP(p, i); return s; };
 

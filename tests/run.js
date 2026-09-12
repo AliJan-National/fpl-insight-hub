@@ -325,6 +325,24 @@ A(/GW\d+ is the strongest Free Hit week/.test(fhWhich) && fhWhich.indexOf(String
 A(!/NaN|undefined/.test(globalThis.__FHP.ans('captain') + globalThis.__FHP.ans('show the team') + globalThis.__FHP.ans('budget') + globalThis.__FHP.ans('nonsense input')),
   'Free Hit assistant: every grounded answer + fallback is clean (no invented numbers)');
 
+// ---------- 11. GK/DEF STRUCTURAL FIXTURE RESPONSE (v42) ----------
+const FX11 = slice('// ============ 🎯 FIXTURE-RESPONSE MODEL', '// ============ 👟 MINUTES V2');
+const SPINE11 = slice('// ============ ONE FORECAST OBJECT', 'function startersAt(');
+const FHS11 = slice('// ============ 🃏 FREE HIT LAB', '// ============ 🎯 FIXTURE-RESPONSE MODEL');
+(0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + FM + '\n' + osmBlock + '\n' + SPINE11 + '\n' + FX11 + '\n' + FHS11 + '\nglobalThis.__V42 = { projP, gkStructXp, fxXgaOf, defPosAdjOf, fixtureFactor, freeHitPlan, FH_MEMO, byName: n => DATA.players.find(p => p.name === n) }; })()');
+const V42 = globalThis.__V42;
+const tzoX = V42.projP(V42.byName('Tzolakis'), 0);
+A(tzoX >= 3.4 && tzoX <= 5.0, 'v42 GK fix: Tzolakis away at Chelsea prices at ' + tzoX.toFixed(2) + ' xP (was 6.33 — a hot save-machine baseline no longer rides through an elite attack)');
+A(V42.gkStructXp(0.8) > V42.gkStructXp(1.4) && V42.gkStructXp(1.4) > V42.gkStructXp(2.2) && V42.gkStructXp(2.2) > 3.0,
+  'v42 GK fix: the structural curve falls with expected-goals-against but never collapses (saves cushion: ' + V42.gkStructXp(0.8).toFixed(2) + ' / ' + V42.gkStructXp(1.4).toFixed(2) + ' / ' + V42.gkStructXp(2.2).toFixed(2) + ')');
+const fE11 = V42.fixtureFactor(V42.byName('Calafiori'), 0), fH11 = V42.fixtureFactor(V42.byName('Ajayi'), 0);
+A(fE11.defAdj - fH11.defAdj >= 0.25, 'v42 DEF fix: clean-sheet pricing separates easy from brutal (ARS@SUN ' + fE11.defAdj + ' vs HUL v CHE ' + fH11.defAdj + ')');
+V42.FH_MEMO.plan = null;
+const fh11 = V42.freeHitPlan();
+const gk11 = fh11.gws.filter(g => !g.error)[0];
+const starter11 = gk11.squad.find(r => r.p.pos === 'GK' && gk11.starters.includes(r));
+A(starter11.p.name !== 'Tzolakis', 'v42 consequence: the GW4 Free Hit XI starts ' + starter11.p.name + ' (vs ' + starter11.f.opp + '), not Tzolakis away at Chelsea');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);
