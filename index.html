@@ -30,6 +30,7 @@
   <button class="tab active" data-tab="overview">Overview</button>
   <button class="tab" data-tab="myteam">My Team</button>
   <button class="tab" data-tab="wildcard">Wildcard Lab</button>
+        <button class="tab" data-tab="freehit">🃏 Free Hit</button>
   <button class="tab" data-tab="assistant">🤖 Assistant</button>
   <button class="tab" data-tab="minileague">🏆 Mini League</button>
   <button class="tab" data-tab="planner">📅 Planner</button>
@@ -260,6 +261,28 @@
     <div id="cmpOut" class="ml-grid"></div>
   </section>
 
+  <section id="freehit" class="panel">
+    <div id="fhBody"></div>
+    <div class="card" style="margin-top:16px">
+      <h2>🤖 Free Hit Assistant</h2>
+      <p class="hint">Ask about the Free Hit plan — which week, the squads, captain, bench, budget, risks, overlap. Answers come from the computed plan, never invented.</p>
+      <div class="chips" id="fhQs">
+        <button class="chip">Which week?</button>
+        <button class="chip">Show the team</button>
+        <button class="chip">Captain?</button>
+        <button class="chip">Budget</button>
+        <button class="chip">Why?</button>
+        <button class="chip">Risks</button>
+        <button class="chip">Overlap</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="fhQ" type="text" placeholder="e.g. which gameweek is best for Free Hit?">
+        <button id="fhAsk" class="btn">Ask</button>
+      </div>
+      <div id="fhOut" class="chatlog" style="margin-top:10px"></div>
+    </div>
+  </section>
+
   <section id="radar" class="panel">
     <div class="card">
       <h2>🛰️ Market Pulse <span class="muted">— where the crowd is going, and whether our model agrees</span></h2>
@@ -326,6 +349,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=40"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>

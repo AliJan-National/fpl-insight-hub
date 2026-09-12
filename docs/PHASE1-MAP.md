@@ -22,6 +22,7 @@ Tranche 2 added `src/models/minutes.js` (Phase 2 minutes engine, NOT in producti
 | 5b | `src/models/minutes.js` | NEW (Phase 2) | ~4,700 | minutesV2 ladder — built beside legacy, not yet in production |
 | 5c | `src/models/team-strength.js` | NEW (Phase 3) | ~5,700 | teamRatingsV2 + expectedGoals feed — built beside legacy, not yet in production |
 | 5d | `src/models/fixture-v2.js` | NEW (Phase 4) | ~4,500 | fixtureDifficultyV2 position-aware grades + posFixGrade bridge — beside legacy, not in production |
+| 4b | `src/decisions/freehit.js` | NEW (user feature) | ~11,000 | Free Hit Lab: one-GW squad optimizer for 3 GWs + grounded assistant — PRODUCTION (its own tab) |
 | 6 | `src/models/projection.js` | 2658–3210 | 32,870 | ONE FORECAST OBJECT spine (forecastOf, minutes, probabilities) |
 | 7 | `src/validation/backtest.js` | 3211–3349 | 9,477 | backtest lab (leakage-free, out-of-sample) |
 | 8 | `src/validation/scorecard.js` | 3350–3566 | 17,543 | xP measurement vs baselines (official EP, form, history) |

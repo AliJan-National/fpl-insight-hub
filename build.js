@@ -10,6 +10,7 @@ const MANIFEST = [
   'src/intelligence/market.js',
   'src/intelligence/visuals.js',
   'src/legacy/part-b.js',
+  'src/decisions/freehit.js',
   'src/models/fixture.js',
   'src/models/minutes.js',
   'src/models/team-strength.js',

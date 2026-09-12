@@ -4,6 +4,7 @@ $$('.tab').forEach(t => t.onclick = () => {
   t.classList.add('active');
   $('#' + t.dataset.tab).classList.add('active');
   if (t.dataset.tab === 'wildcard') renderWildcard();
+  if (t.dataset.tab === 'freehit') renderFreeHit();
   if (t.dataset.tab === 'xint') renderElite();
   if (t.dataset.tab === 'planner') renderBacktest();
 });

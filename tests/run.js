@@ -304,6 +304,27 @@ const fxPal = FX.posFixGrade(DATA.players.find(p => p.name === 'Palmer'), 0);
 A(fxPal.opp === 'HUL' && fxPal.score < 2.6 && fxPal.all && fxPal.all.GK.score > fxPal.all.FWD.score,
   'Fixture V2: player bridge — Palmer GW4 ' + fxPal.score + ' (MID lens), same fixture graded GK ' + fxPal.all.GK.score + ' (positions differ)');
 
+// ---------- 10. FREE HIT LAB: one-GW squad optimizer, 3 GWs, assistant ----------
+const FHS = slice('// ============ 🃏 FREE HIT LAB', '// ============ 🎯 FIXTURE-RESPONSE MODEL');
+const FXMOD = slice('// ============ 🎯 FIXTURE-RESPONSE MODEL', '// ============ 👟 MINUTES V2');
+const SPINE10 = slice('// ============ ONE FORECAST OBJECT', 'function startersAt(');
+(0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + FM + '\n' + osmBlock + '\n' + FXMOD + '\n' + SPINE10 + '\n' + FHS + '\nglobalThis.__FHP = { plan: freeHitPlan(), ans: freeHitAnswer }; })()');
+const fhp = globalThis.__FHP.plan;
+const fhOk = fhp.gws.filter(g => !g.error);
+A(fhOk.length === 3 && fhOk.every(g => g.squad.length === 15 && g.spent <= g.budget + 1e-6),
+  'Free Hit: three legal 15-man squads within budget (GW' + fhOk.map(g => g.gw).join('/') + ', scores ' + fhOk.map(g => g.fhScore).join('/') + ')');
+let fhPosBad = 0, fhClubBad = 0;
+fhOk.forEach(g => { const pos = {}, cl = {}; g.squad.forEach(r => { pos[r.p.pos] = (pos[r.p.pos] || 0) + 1; cl[r.p.team] = (cl[r.p.team] || 0) + 1; });
+  if (!(pos.GK === 2 && pos.DEF === 5 && pos.MID === 5 && pos.FWD === 3)) fhPosBad++; if (Object.values(cl).some(n => n > 3)) fhClubBad++; });
+A(fhPosBad === 0 && fhClubBad === 0, 'Free Hit: FPL rules hold — 2/5/5/3 quotas and max 3 per club in every week');
+A(!!fhp.best && fhp.best.fhScore === Math.max.apply(null, fhOk.map(g => g.fhScore)) && /xP over GW/.test(fhp.why),
+  'Free Hit: recommendation is the argmax with quantified gaps (' + fhp.why + ')');
+const fhWhich = globalThis.__FHP.ans('which week should I play it?');
+A(/GW\d+ is the strongest Free Hit week/.test(fhWhich) && fhWhich.indexOf(String(fhp.best.fhScore.toFixed(1))) >= 0 && !/NaN|undefined/.test(fhWhich),
+  'Free Hit assistant: "which week" answers from the computed plan (quotes GW' + fhp.best.gw + ' and ' + fhp.best.fhScore.toFixed(1) + ')');
+A(!/NaN|undefined/.test(globalThis.__FHP.ans('captain') + globalThis.__FHP.ans('show the team') + globalThis.__FHP.ans('budget') + globalThis.__FHP.ans('nonsense input')),
+  'Free Hit assistant: every grounded answer + fallback is clean (no invented numbers)');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);
