@@ -120,6 +120,7 @@
   </section>
 
   <section id="captain" class="panel">
+    <p class="hint" style="color:var(--amber);margin-bottom:10px">⚠️ If a captain pick would cost you a <b>-4 hit</b> to bring in: the transfer needs 5-GW value behind it — never pay a hit for one week's armband alone.</p>
     <div class="grid2">
       <div class="card">
         <h2>Captain Picks <span class="muted">— next GW, ep adjusted for fixture &amp; penalties</span></h2>
@@ -139,6 +140,7 @@
     <div class="card">
       <h2 class="green">🃏 Wildcard Team of the Week <span class="muted" id="wcMeta"></span></h2>
       <p class="hint">Optimal 15-man squad for <b>£100.0m</b> over the fixture window you choose — projections + form + reliability, rebuilt every data update. Captaincy is reliability-weighted so one-week wonders never get the armband.</p>
+      <p class="hint" style="color:var(--amber)">⚠️ A wildcard is a <b>free rebuild</b> — no hit cost. If you are copying a pick into your <b>normal squad</b> by paying -4, the hit must be paid back by 5-GW value first; a one-week captaincy alone almost never justifies it.</p>
       <div class="entry-row">
         <label class="muted">Fixture window</label>
         <select id="wcHorizon"><option value="3" selected>Next 3 GWs</option><option value="5">Next 5 GWs</option></select>
@@ -349,6 +351,6 @@
 <footer>
   Data snapshot generated <span id="genDate"></span> · Source: <a href="https://github.com/olbauday/FPL-Core-Insights" target="_blank">olbauday/FPL-Core-Insights</a> (free &amp; open) · FPL data © Premier League
 </footer>
-<script src="app.js?v=42"></script>
+<script src="app.js?v=43"></script>
 </body>
 </html>

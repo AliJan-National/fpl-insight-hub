@@ -69,10 +69,14 @@ A(/excluded|risk|doubt/i.test(ans('risks')), '"risks" answers from the real squa
 A(/overlap/.test(ans('overlap')) || /Load your team/.test(ans('overlap')), '"overlap" answers honestly (no team loaded)');
 A(!/NaN|undefined/.test(ans('which week') + ans('captain') + ans('show team') + ans('bench') + ans('budget') + ans('why') + ans('risks') + ans('overlap') + ans('random gibberish')), 'no NaN/undefined in ANY assistant answer, including the fallback');
 
+// ---------- hit-cost honesty (added after the user's -4 Gakpo lesson) ----------
+A(/-4/.test(ans('which week should I play it?')) && /FREE squad/.test(ans('which week?')), 'the assistant warns that captain advice assumes a FREE squad (no -4 hits)');
+
 // ---------- rendering ----------
 try { FH.renderFreeHit(); console.log('PASS | renderFreeHit paints without throwing'); } catch (e) { console.error('FAIL | renderFreeHit threw: ' + e.message); process.exitCode = 1; }
 const html = els.fhBody.innerHTML;
 A(html.indexOf('BEST WEEK') >= 0 && html.indexOf('GW' + P.best.gw) >= 0, 'renders the comparison cards + BEST WEEK badge');
+A(html.toLowerCase().indexOf('copy one into your normal squad by paying -4') >= 0, 'the Free Hit verdict carries the hit-cost warning')
 A((html.match(/class="data compact"/g) || []).length === 3, 'renders all three squad tables');
 A(!/NaN|undefined/.test(html), 'no NaN/undefined in the rendered tab');
 try { FH.renderAll(); console.log('PASS | renderAll still clean with the new tab'); } catch (e) { console.error('FAIL | renderAll threw: ' + e.message); process.exitCode = 1; }

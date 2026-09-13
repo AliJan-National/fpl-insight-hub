@@ -137,7 +137,7 @@ function freeHitAnswer(q0) {
     return '<b>GW' + P.best.gw + ' is the strongest Free Hit week: ' + P.best.fhScore.toFixed(1) + ' xP</b> (' + others + '). '
       + (P.why ? 'That is ' + P.why + '. ' : '')
       + 'Captain: <b>' + esc(P.best.captain.p.name) + '</b> (' + P.best.captain.xp.toFixed(1) + ' xP). Formation ' + P.best.formation + ', £' + P.best.spent.toFixed(1) + 'm of £' + P.budget.toFixed(1) + 'm. '
-      + (P.chipUsed ? '⚠️ Note: your loaded team shows Free Hit as already played — this is the analysis, not a live chip.' : 'All figures are model estimates from the same forecast spine as the rest of the app.');
+      + (P.chipUsed ? '⚠️ Note: your loaded team shows Free Hit as already played — this is the analysis, not a live chip.' : 'All figures are model estimates from the same forecast spine as the rest of the app. ⚠️ This advice assumes a FREE squad — paying -4 in your normal team for a one-week captain is a different decision and needs 5-GW value behind it.');
   }
   if (/captain/.test(q)) {
     return '<b>Free Hit captains by week:</b><br>' + P.gws.filter(g => !g.error).map(g => 'GW' + g.gw + ': <b>' + esc(g.captain.p.name) + '</b> — ' + g.captain.xp.toFixed(1) + ' xP vs ' + esc(g.captain.f.opp) + (g.captain.f.ha === 'H' ? ' (H)' : ' (A)')).join('<br>') + '<br><span class="muted">Highest projected starter that week (model estimate).</span>';
@@ -190,6 +190,7 @@ function renderFreeHit() {
     const used = P.chipUsed ? '<p class="hint" style="color:var(--amber)">⚠️ Your loaded team shows Free Hit as <b>already played</b> — this is the analysis; the chip itself is gone this season.</p>' : '';
     host.innerHTML = used
       + '<div class="card"><h2>🃏 Free Hit — which week?</h2><p class="hint" style="margin:0 0 10px">The best legal 15-man squad for each of the next 3 gameweeks, built on the same forecast spine as the whole app (projP + minutes model). Pick the week with the highest total — that is where the chip pays most.</p>'
+      + '<p class="hint" style="color:var(--amber);margin:0 0 10px">⚠️ Free Hit is a <b>free squad</b> — these captain picks assume no transfer cost. Never copy one into your normal squad by paying -4: a hit must be paid back by 5-GW value, not one week’s armband.</p>'
       + '<div class="grid3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' + P.gws.filter(g => !g.error).map(g => '<div class="card" style="margin:0;text-align:center' + (g === P.best ? ';border-color:rgba(0,255,133,.5)' : '') + '"><div style="font-size:12px" class="muted">GW' + g.gw + '</div><div style="font-size:26px;font-weight:800;color:' + (g === P.best ? 'var(--green)' : 'var(--txt)') + '">' + g.fhScore.toFixed(1) + '</div><div class="muted" style="font-size:11px">xP (captain ×2 included)</div></div>').join('') + '</div>'
       + '<p class="hint" style="margin:10px 0 0"><b>Verdict: GW' + P.best.gw + '</b> — ' + esc(P.why || '') + '. Captain ' + esc(P.best.captain.p.name) + '. ' + (P.budget > 100 ? 'Budget = your squad value (£' + P.budget.toFixed(1) + 'm).' : 'Standard £100m budget — load your team for your real value.') + ' All model estimates.</p></div>'
       + '<div class="grid2">' + cards + '</div>';
