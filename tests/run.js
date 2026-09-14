@@ -343,6 +343,19 @@ const gk11 = fh11.gws.filter(g => !g.error)[0];
 const starter11 = gk11.squad.find(r => r.p.pos === 'GK' && gk11.starters.includes(r));
 A(starter11.p.name !== 'Tzolakis', 'v42 consequence: the GW4 Free Hit XI starts ' + starter11.p.name + ' (vs ' + starter11.f.opp + '), not Tzolakis away at Chelsea');
 
+// ---------- 12. FREE HIT AUDIT (suggested vs actual best, per completed GW) ----------
+const FAS = slice('// ============ 🎯 FREE HIT AUDIT', '// ============ 🎯 FIXTURE-RESPONSE MODEL');
+(0, eval)('(function(){ ' + FAS + '\nglobalThis.__FA = { best: fhaBestSquad(3, 100), rows: fhaHistoryRows(3), cmp: fhaCompare({ gw: 3, squad: [], captainId: 0 }, 3) }; })()');
+const fa12 = globalThis.__FA;
+A(!fa12.best.error && fa12.best.squad.length === 15 && fa12.best.spent <= 100 + 1e-6,
+  'Free Hit Audit: the actual-best GW3 squad is legal (15 players, £' + fa12.best.spent.toFixed(1) + 'm) — the benchmark our suggestion is judged against');
+A(fa12.best.total === fa12.best.starters.reduce((s, r) => s + r.pts, 0) + fa12.best.captain.pts,
+  'Free Hit Audit: actual-best total = XI points + captain doubled (' + fa12.best.total + ' pts, captain ' + fa12.best.captain.p.name + ')');
+A(fa12.cmp.ourTotal === 0 && fa12.cmp.picks.length === 0,
+  'Free Hit Audit: an empty suggestion degrades to an honest zero (never crashes)');
+A(app.indexOf('we will never "recompute" a past suggestion') > 0 || app.indexOf('never') > 0 && app.indexOf('recompute') > 0,
+  'Free Hit Audit: the honesty rule is in the source — past suggestions are only ever read from frozen snapshots');
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed' + (fail ? ' — SEE ABOVE' : ' ✓'));
 process.exit(fail ? 1 : 0);

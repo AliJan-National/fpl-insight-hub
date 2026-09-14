@@ -11,6 +11,7 @@ const MANIFEST = [
   'src/intelligence/visuals.js',
   'src/legacy/part-b.js',
   'src/decisions/freehit.js',
+  'src/decisions/fh-audit.js',
   'src/models/fixture.js',
   'src/models/minutes.js',
   'src/models/team-strength.js',

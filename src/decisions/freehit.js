@@ -195,6 +195,7 @@ function renderFreeHit() {
       + '<p class="hint" style="margin:10px 0 0"><b>Verdict: GW' + P.best.gw + '</b> — ' + esc(P.why || '') + '. Captain ' + esc(P.best.captain.p.name) + '. ' + (P.budget > 100 ? 'Budget = your squad value (£' + P.budget.toFixed(1) + 'm).' : 'Standard £100m budget — load your team for your real value.') + ' All model estimates.</p></div>'
       + '<div class="grid2">' + cards + '</div>';
   } catch (e) { host.innerHTML = '<p class="hint">Free Hit Lab unavailable: ' + esc(e.message) + '</p>'; }
+  try { if (typeof renderFreeHitAudit === 'function') renderFreeHitAudit(); } catch (e) {}
 }
 (function wireFreeHit() {
   // Pure wiring, cosmetic only — must never throw in a browser OR any test harness.
