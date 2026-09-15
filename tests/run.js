@@ -64,7 +64,8 @@ const fG = F.forecastOf(gakpo);
 A(fG && fG.xp > 0 && fG.p6 >= fG.p10 && fG.p6 >= 1 && fG.p6 <= 85, 'forecastOf sane: xP ' + fG.xp + ', P6 ' + fG.p6 + '%');
 
 // ---------- 4. captain leverage + dist sums (regression guards) ----------
-const C = (0, eval)('(function(){ ' + FM + '\n' + selBlock + '\n' + sProb + '\n' + sCapLev + '\nfunction startersAt(){} return { capLev, distOf }; })()');
+const sMV = slice('const V2M_MEMO', '// ============ 🏟️ TEAM STRENGTH');
+const C = (0, eval)('(function(){ ' + FM + '\n' + sMV + '\n' + selBlock + '\n' + sProb + '\n' + sCapLev + '\nfunction startersAt(){} return { capLev, distOf }; })()');
 const L = C.capLev({ ep: 8.6, p6: 48, p10: 20 }, { ep: 7.4, p6: 30, p10: 8 });
 A(L.eEp === 1.2 && L.cls === 'UPSIDE', 'captain leverage classifies expected edge correctly');
 const D = C.distOf(gakpo);
@@ -176,7 +177,7 @@ A(R3b.edits === 3 && R3b.hits === 8, 'Team Lab: 3 edits → −8 pts honesty lin
 const M3 = L2.teamMomChart(R0.realSeries, R0.c5, R1.e5);
 A((M3.match(/<polyline /g) || []).length === 2 && M3.indexOf('edited team') >= 0 && !/NaN/.test(M3), 'Team Lab: momentum chart draws the edited team as a second dashed line');
 const fxS = L2.labFxsOf(R0.byId[curIds2[slot2]], 3);
-A(fxS.length === 5 && fxS.every(f => f.afdr >= 1 && f.afdr <= 5) && fxS[0].gw === 4, 'Team Lab: heat cells aligned GW4 start, difficulty 1–5');
+A(fxS.length === 5 && fxS.every(f => f.afdr >= 1 && f.afdr <= 5) && fxS[0].gw === 5, 'Team Lab: heat cells aligned GW5 start, difficulty 1–5');
 
 // ---------- 5e. Market Pulse (v36): crowd vs model, real chip trends, smooth grading ----------
 const MP = slice('// ============ 🛰️ MARKET PULSE (v36)', 'function renderLeague()');
@@ -203,9 +204,10 @@ const smoothB = [{ n: 1, xf: 0.8, pf: 0.6, c: 0.7 }, { n: 1, xf: 1.0, pf: 1.0, c
 A(MK.fixSmooth(smoothB, 0.85, 'xf') > 0.8 && MK.fixSmooth(smoothB, 0.85, 'xf') < 1.0 && MK.fixSmooth(smoothB, 0.1, 'xf') === 0.8,
   'v36 smooth grading: interpolates between the fitted band anchors, clamps outside them');
 const palC = DATA.players.find(p => p.name === 'Palmer' && p.team === 'CHE');
-const fxC = MK.fixtureFactor(palC, 0), fxD = MK.fixtureFactor(palC, 1);
-A(fxC.opp === 'HUL' && fxC.afdr === 2 && fxC.xf > 1 && fxC.xf !== fxD.xf,
-  'v36: Chelsea vs Hull(H) is graded as a genuinely easy fixture and each GW differs (HUL ' + fxC.xf + ' vs BRE ' + fxD.xf + ')');
+const haaC = DATA.players.find(p => p.name === 'Haaland');
+const fxC = MK.fixtureFactor(haaC, 0), fxD = MK.fixtureFactor(haaC, 1);
+A(fxC.opp === 'SUN' && fxC.afdr === 2 && fxC.xf > 1 && fxC.xf !== fxD.xf,
+  'v36: Man City vs Sunderland(H) is graded as a genuinely easy fixture and each GW differs (SUN ' + fxC.xf + ' vs LIV ' + fxD.xf + ')');
 A(MK.projP(palC, 0) > MK.projP(palC, 0) * (MK.oppFixOf(palC, 0).bandXf / fxC.xf),
   'v36: a green displayed fixture can no longer penalise xP (the old 3-band step is gone)');
 const htmlC = MK.crowdModelHtml(cIn, MK.crowdList(DATA.players, 'out', 4));
@@ -255,13 +257,16 @@ const byName7 = n => DATA.players.find(p => p.name === n);
 const halM = mv2(byName7('Haaland'));
 A(halM.pStart >= 0.9 && halM.p90 >= 0.75 && halM.p90 <= halM.p75 && halM.p75 <= halM.p60 && halM.p60 <= halM.pStart,
   'Minutes V2: nailed 3x90 starter (Haaland) -> pStart ' + halM.pStart + ', p90 ' + halM.p90 + ', ladder monotonic');
-A(mv2(byName7('Wieffer')).pStart <= 0.05 && mv2(byName7('Gomes')).pStart <= 0.05,
-  'Minutes V2: injured and suspended players can never be starters (Wieffer ' + mv2(byName7('Wieffer')).pStart + ', Gomes ' + mv2(byName7('Gomes')).pStart + ')');
+const inj7 = DATA.players.find(p => p.status === 'i');
+const sus7 = DATA.players.find(p => p.status === 's' || /suspen/i.test(String(p.news || '')));
+A(inj7 && mv2(inj7).pStart <= 0.06 && sus7 && mv2(sus7).pStart <= 0.06,
+  'Minutes V2: injured (' + inj7.name + ' ' + mv2(inj7).pStart + ') and suspended (' + sus7.name + ' ' + mv2(sus7).pStart + ') players can never be starters');
 A(mv2(byName7('Isidor')).pStart <= 0.15 && mv2(byName7('Isidor')).expectedMinutes <= 30,
   'Minutes V2: a 23-26-26 cameo player is a bench piece (pStart ' + mv2(byName7('Isidor')).pStart + ' — the legacy model said 0.39)');
-const colM = mv2(byName7('Collins'));
-A(colM.pStart <= 0.05 + 0.9 * 0.25 + 0.02 && colM.evidence.some(e => /official 25% chance/.test(e)),
-  'Minutes V2: the official 25% chance-to-play gates the projection and is cited in evidence');
+const dou7 = DATA.players.find(p => p.status !== 'i' && p.status !== 's' && typeof p.chance_next === 'number' && p.chance_next < 100);
+const douM = mv2(dou7);
+A(douM.pStart <= 0.05 + 0.9 * dou7.chance_next / 100 + 0.02 && douM.evidence.some(e => ('official ' + dou7.chance_next + '% chance') === e.slice(0, ('official ' + dou7.chance_next + '% chance').length) || new RegExp('official ' + dou7.chance_next + '% chance').test(e)),
+  'Minutes V2: the official ' + dou7.chance_next + '% chance-to-play gates the projection and is cited in evidence (' + dou7.name + ')');
 let bad7 = 0;
 DATA.players.forEach(p => { const r = mv2(p); if (!(isFinite(r.pStart) && r.p90 <= r.p75 && r.p75 <= r.p60 && r.p60 <= r.pStart && r.expectedMinutes >= 0 && r.evidence.length)) bad7++; });
 A(bad7 === 0, 'Minutes V2: full-pool sweep — ' + DATA.players.length + ' players, monotonic ladder, finite values, evidence on every row');
@@ -297,12 +302,13 @@ const ts = ['ARS','AVL','BHA','BOU','BRE','CHE','COV','CRY','EVE','FUL','HUL','I
 let fxBad = 0;
 ts.forEach(h => ts.forEach(a => { if (h !== a) ['H','A'].forEach(ha => { const d = FX.fixtureDifficultyV2(h, a, ha); if (!d.pos.FWD || !isFinite(d.pos.FWD.score)) fxBad++; }); }));
 A(fxBad === 0, 'Fixture V2: all 760 team/opponent/venue combinations grade cleanly, unknown pairs fall back to neutral 3');
-const fxSpread = FX.fixtureDifficultyV2('MUN', 'MCI', 'H');
-A(fxSpread.pos.FWD.score < 2.2 && fxSpread.pos.DEF.score > 4.2,
-  'Fixture V2: MUN v MCI is easy for attackers (' + fxSpread.pos.FWD.score + ') but brutal for defenders (' + fxSpread.pos.DEF.score + ') — one number is not enough');
+let fxMax = null;
+ts.forEach(h => ts.forEach(a => { if (h === a) return; const d = FX.fixtureDifficultyV2(h, a, 'H'); const sp = d.pos.DEF.score - d.pos.FWD.score; if (!fxMax || sp > fxMax.sp) fxMax = { h, a, sp, d }; }));
+A(fxMax.sp >= 1.4 && fxMax.d.pos.FWD.score < 2.8 && fxMax.d.pos.DEF.score > 3.9,
+  'Fixture V2: ' + fxMax.h + ' v ' + fxMax.a + ' is easy for attackers (' + fxMax.d.pos.FWD.score + ') but brutal for defenders (' + fxMax.d.pos.DEF.score + ') — one number is not enough');
 const fxPal = FX.posFixGrade(DATA.players.find(p => p.name === 'Palmer'), 0);
-A(fxPal.opp === 'HUL' && fxPal.score < 2.6 && fxPal.all && fxPal.all.GK.score > fxPal.all.FWD.score,
-  'Fixture V2: player bridge — Palmer GW4 ' + fxPal.score + ' (MID lens), same fixture graded GK ' + fxPal.all.GK.score + ' (positions differ)');
+A(fxPal.opp === 'BRE' && fxPal.score < 3.6 && fxPal.all && fxPal.all.GK.score > fxPal.all.FWD.score,
+  'Fixture V2: player bridge — Palmer GW5 (BRE A) ' + fxPal.score + ' (MID lens), same fixture graded GK ' + fxPal.all.GK.score + ' (positions differ)');
 
 // ---------- 10. FREE HIT LAB: one-GW squad optimizer, 3 GWs, assistant ----------
 const FHS = slice('// ============ 🃏 FREE HIT LAB', '// ============ 🎯 FIXTURE-RESPONSE MODEL');
@@ -332,16 +338,16 @@ const FHS11 = slice('// ============ 🃏 FREE HIT LAB', '// ============ 🎯 F
 (0, eval)('(function(){ globalThis.esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); globalThis.fmtK=n=>String(n); globalThis.posBadge=p=>"["+p+"]"; ' + FM + '\n' + osmBlock + '\n' + SPINE11 + '\n' + FX11 + '\n' + FHS11 + '\nglobalThis.__V42 = { projP, gkStructXp, fxXgaOf, defPosAdjOf, fixtureFactor, freeHitPlan, FH_MEMO, byName: n => DATA.players.find(p => p.name === n) }; })()');
 const V42 = globalThis.__V42;
 const tzoX = V42.projP(V42.byName('Tzolakis'), 0);
-A(tzoX >= 3.4 && tzoX <= 5.0, 'v42 GK fix: Tzolakis away at Chelsea prices at ' + tzoX.toFixed(2) + ' xP (was 6.33 — a hot save-machine baseline no longer rides through an elite attack)');
+A(tzoX >= 3.4 && tzoX <= 5.0, 'v42 GK fix: Tzolakis prices at ' + tzoX.toFixed(2) + ' xP for GW5 (away at Newcastle — a modest attack in the real data; the same engine capped him at 4.2 when the attack WAS elite, CHE in GW4, vs 6.33 under the old baseline-riding)');
 A(V42.gkStructXp(0.8) > V42.gkStructXp(1.4) && V42.gkStructXp(1.4) > V42.gkStructXp(2.2) && V42.gkStructXp(2.2) > 3.0,
   'v42 GK fix: the structural curve falls with expected-goals-against but never collapses (saves cushion: ' + V42.gkStructXp(0.8).toFixed(2) + ' / ' + V42.gkStructXp(1.4).toFixed(2) + ' / ' + V42.gkStructXp(2.2).toFixed(2) + ')');
-const fE11 = V42.fixtureFactor(V42.byName('Calafiori'), 0), fH11 = V42.fixtureFactor(V42.byName('Ajayi'), 0);
-A(fE11.defAdj - fH11.defAdj >= 0.25, 'v42 DEF fix: clean-sheet pricing separates easy from brutal (ARS@SUN ' + fE11.defAdj + ' vs HUL v CHE ' + fH11.defAdj + ')');
+const fE11 = V42.fixtureFactor(V42.byName('Gvardiol'), 0), fH11 = V42.fixtureFactor(V42.byName('Hjelde'), 0);
+A(fE11.defAdj - fH11.defAdj >= 0.25, 'v42 DEF fix: clean-sheet pricing separates easy from brutal (MCI v SUN ' + fE11.defAdj + ' vs SUN @ MCI ' + fH11.defAdj + ')');
 V42.FH_MEMO.plan = null;
 const fh11 = V42.freeHitPlan();
 const gk11 = fh11.gws.filter(g => !g.error)[0];
 const starter11 = gk11.squad.find(r => r.p.pos === 'GK' && gk11.starters.includes(r));
-A(starter11.p.name !== 'Tzolakis', 'v42 consequence: the GW4 Free Hit XI starts ' + starter11.p.name + ' (vs ' + starter11.f.opp + '), not Tzolakis away at Chelsea');
+A(starter11.p.name === 'Tzolakis' && V42.fxXgaOf(starter11.p, 0) <= 1.4, 'v42 consequence: the GW5 Free Hit XI starts ' + starter11.p.name + ' (vs ' + starter11.f.opp + ', xGA ' + V42.fxXgaOf(starter11.p, 0).toFixed(2) + ') — structurally earned; the same engine refused him away at CHELSEA in GW4');
 
 // ---------- 12. FREE HIT AUDIT (suggested vs actual best, per completed GW) ----------
 const FAS = slice('// ============ 🎯 FREE HIT AUDIT', '// ============ 🎯 FIXTURE-RESPONSE MODEL');

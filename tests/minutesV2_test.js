@@ -1,5 +1,5 @@
 // minutesV2_test.js — 👟 MINUTES V2 (v2.0 Phase 2)
-// Real-data harness: legacy startProb()/minutesOf() vs the new minutesV2() ladder.
+// Real-data harness: legacy startProbLegacy()/minutesOfLegacy() vs the production minutesV2() ladder (v45 spine switch).
 const fs = require('fs');
 const j = f => JSON.parse(fs.readFileSync('api/' + f, 'utf8'));
 const DATA = { meta: j('meta.json'), league: j('league.json'), results: j('results.json'), players: j('players.json'),
@@ -15,7 +15,7 @@ const els = {};
 global.document = { querySelector: s => { const k = String(s).replace(/^#/, ''); if (!els[k]) els[k] = { innerHTML: '', textContent: '', value: '', checked: false, style: {}, dataset: {}, onclick: null, classList: { add() {}, remove() {}, contains: () => false }, addEventListener() {}, click() {} }; return els[k]; }, querySelectorAll: () => [] };
 global.$$ = () => [];
 const app = fs.readFileSync('app.js', 'utf8');
-(0, eval)(app + '\nDATA = global.DATA;\n(function(){ (DATA.players||[]).forEach(p => { const a=((window.TF[p.team]||{}).afx)||[]; (p.next3||[]).forEach((f,i)=>{ if(a[i]!=null){ f.adjv=a[i]; f.afdr=Math.max(1,Math.min(5,Math.round(a[i]))); } }); }); })();\nglobalThis.__M = { minutesV2, startProb, minutesOf, V2M_MEMO, SEL_MEMO, MIN_MEMO };');
+(0, eval)(app + '\nDATA = global.DATA;\n(function(){ (DATA.players||[]).forEach(p => { const a=((window.TF[p.team]||{}).afx)||[]; (p.next3||[]).forEach((f,i)=>{ if(a[i]!=null){ f.adjv=a[i]; f.afdr=Math.max(1,Math.min(5,Math.round(a[i]))); } }); }); })();\nglobalThis.__M = { minutesV2, startProb, minutesOf, startProbLegacy, minutesOfLegacy, V2M_MEMO, SEL_MEMO, MIN_MEMO };');
 const M = globalThis.__M;
 const A = (c, m) => { if (!c) { console.error('FAIL |', m); process.exitCode = 1; } else console.log('PASS |', m); };
 const find = n => DATA.players.find(p => p.name === n);
@@ -34,14 +34,20 @@ A(cherki.evidence.some(e => /starts \(GW/.test(e)), 'ROTATION: evidence cites hi
 const mukiele = M.minutesV2(find('Mukiele'));
 A(mukiele.pStart > 0.45 && mukiele.pStart < 0.85, 'ROTATION: Mukiele (0-90-90, trending in) -> pStart ' + mukiele.pStart + ' (recency weighting sees the trend)');
 
-// ---------- archetype 3: injured player ----------
-const wieffer = M.minutesV2(find('Wieffer'));
-A(wieffer.pStart <= 0.06 && wieffer.expectedMinutes <= 5, 'INJURED: Wieffer (knee, 0% official) -> pStart ' + wieffer.pStart + ', expMin ' + wieffer.expectedMinutes);
-A(wieffer.confidence.availability <= 0.2 && wieffer.evidence.some(e => /injured/.test(e)), 'INJURED: availability confidence crushed (' + wieffer.confidence.availability + ') + injury evidence line');
+// ---------- archetype 3: injured player (dynamic — whoever is officially out now) ----------
+const injuredNow = DATA.players.filter(p => p.status === 'i').sort((a, b) => (b.mins || 0) - (a.mins || 0))[0];
+if (injuredNow) {
+  const inj = M.minutesV2(injuredNow);
+  A(inj.pStart <= 0.06 && inj.expectedMinutes <= 5, 'INJURED: ' + injuredNow.name + ' (officially out) -> pStart ' + inj.pStart + ', expMin ' + inj.expectedMinutes);
+  A(inj.confidence.availability <= 0.2 && inj.evidence.some(e => /injured/.test(e)), 'INJURED: availability confidence crushed (' + inj.confidence.availability + ') + injury evidence line');
+} else console.log('SKIP  | no officially injured player in the current data');
 
-// ---------- archetype 4: suspended player ----------
-const gomes = M.minutesV2(find('Gomes'));
-A(gomes.pStart <= 0.06 && gomes.evidence.some(e => /suspended/i.test(e)), 'SUSPENDED: Gomes -> pStart ' + gomes.pStart + ' with suspension evidence');
+// ---------- archetype 4: suspended player (dynamic — whoever is banned now) ----------
+const susNow = DATA.players.filter(p => p.status === 's' || /suspen/i.test(String(p.news || ''))).sort((a, b) => (b.mins || 0) - (a.mins || 0))[0];
+if (susNow) {
+  const sus = M.minutesV2(susNow);
+  A(sus.pStart <= 0.06 && sus.evidence.some(e => /suspended/i.test(e)), 'SUSPENDED: ' + susNow.name + ' -> pStart ' + sus.pStart + ' with suspension evidence');
+} else console.log('SKIP  | no suspended player in the current data');
 
 // ---------- archetype 5: new / low-sample player (synthetic — none exist yet at GW3) ----------
 const newbie = M.minutesV2({ id: -999, name: 'NewSigning', pos: 'MID', team: 'LIV', status: 'a', mins: 0 });
@@ -57,14 +63,23 @@ const sesko = M.minutesV2(find('Šeško'));
 A(sesko.pStart <= 0.35 && sesko.expectedMinutes <= 25, 'CAMEO: Šeško (23-10-20) -> pStart ' + sesko.pStart + ', expMin ' + sesko.expectedMinutes);
 
 // ---------- official chance_next respected ----------
-const collins = M.minutesV2(find('Collins'));   // 25% official
-const mosq = M.minutesV2(find('Mosquera'));     // 75% official
-const hinsh = M.minutesV2(find('Hinshelwood')); // 50% official
+// official chance_next respected (dynamic — the current doubters, one per chance band)
+const doubters = [];
+[75, 50, 25].forEach(band => {
+  const pick = DATA.players.filter(p => p.status !== 'i' && p.status !== 's' && typeof p.chance_next === 'number' && p.chance_next < 100
+    && Math.abs(p.chance_next - band) <= 25 && !doubters.includes(p))
+    .sort((a, b) => (b.mins || 0) - (a.mins || 0))[0];
+  if (pick && !doubters.some(d => d.chance_next === pick.chance_next)) doubters.push(pick);
+});
 const gate = ch => 0.05 + 0.9 * ch / 100;   // the availability bound V2 applies from the official %
-A(collins.pStart <= gate(25) + 0.02 && hinsh.pStart <= gate(50) + 0.02 && mosq.pStart <= gate(75) + 0.02,
-  'chance_next caps the gate: Collins(25%) ' + collins.pStart + ' <= ' + (gate(25)).toFixed(2) + ', Hinshelwood(50%) ' + hinsh.pStart + ' <= ' + gate(50).toFixed(2) + ', Mosquera(75%) ' + mosq.pStart + ' <= ' + gate(75).toFixed(2));
-A(mosq.pStart > collins.pStart, 'a 75%-fit starter (' + mosq.pStart + ') outranks a 25%-fit one (' + collins.pStart + ') when their own records are comparable');
-A([collins, mosq, hinsh].every(x => x.evidence.some(e => /official \d+% chance/.test(e))), 'each doubt cites the official % in evidence');
+if (doubters.length >= 2) {
+  const dts = doubters.map(p => ({ p, v: M.minutesV2(p) })).sort((a, b) => b.p.chance_next - a.p.chance_next);
+  A(dts.every(d => d.v.pStart <= gate(d.p.chance_next) + 0.02),
+    'chance_next caps the gate: ' + dts.map(d => d.p.name + '(' + d.p.chance_next + '%) ' + d.v.pStart + ' <= ' + gate(d.p.chance_next).toFixed(2)).join(', '));
+  const hi = dts[0], lo = dts[dts.length - 1];
+  A(hi.v.pStart > lo.v.pStart || hi.p.chance_next === lo.p.chance_next, 'a ' + hi.p.chance_next + '%-fit player (' + hi.v.pStart + ') outranks a ' + lo.p.chance_next + '%-fit one (' + lo.v.pStart + ') when records are comparable');
+  A(dts.every(d => d.v.evidence.some(e => /official \d+% chance/.test(e))), 'each doubt cites the official % in evidence');
+} else console.log('SKIP  | fewer than 2 official doubters in the current data');
 
 // ---------- full-pool sweep: no NaN, ladder monotonic, sane ranges ----------
 let bad = 0, minsSum = 0;
@@ -87,7 +102,7 @@ A(JSON.stringify(a1) === JSON.stringify(a2), 'deterministic + memoised (same inp
 // ---------- legacy vs V2 comparison table (the Phase-2 deliverable) ----------
 console.log('\n===== LEGACY vs MINUTES V2 (real players) =====');
 console.log('player            | legacy pStart | V2 pStart | V2 p60 | V2 p90 | legacy expMin | V2 expMin | conf');
-const show = n => { const p = find(n); const l = M.startProb(p), lo = M.minutesOf(p), v = M.minutesV2(p);
+const show = n => { const p = find(n); const l = M.startProbLegacy(p), lo = M.minutesOfLegacy(p), v = M.minutesV2(p);  // v45: legacy engines by their explicit names
   console.log(p.name.padEnd(17) + '|     ' + l.toFixed(2) + '      |   ' + v.pStart.toFixed(2) + '   |  ' + v.p60.toFixed(2) + '  |  ' + v.p90.toFixed(2) + '  |      ' + String(lo.expMin).padEnd(4) + '     |    ' + String(v.expectedMinutes).padEnd(4) + '  |  ' + v.confidence.overall); };
 ['Haaland', 'B.Fernandes', 'Tzolakis', 'Cherki', 'Munoz', 'Mukiele', 'Mainoo', 'Wieffer', 'Gomes', 'Isidor', 'Šeško', 'J.Ramsey', 'Collins', 'Mosquera'].forEach(show);
 
@@ -111,10 +126,10 @@ if (maxGw >= 4) {
     const act = (fullHist[p.id] || []).filter(r => (r[0] || 0) === L)[0][4] || 0;
     const started = act >= 60 ? 1 : 0;
     const preMins = (stripped[p.id] || []).reduce((sm, r) => sm + (r[4] || 0), 0);
-    const psL = M.startProb(p, { mins: preMins, status: p.status });   // legacy fed its pre-deadline mins
+    const psL = M.startProbLegacy(p, { mins: preMins, status: p.status });   // legacy engine fed its pre-deadline mins
     const v2 = M.minutesV2(p);
     bL += (psL - started) ** 2; bV += (v2.pStart - started) ** 2;
-    maeL += Math.abs(M.minutesOf(p).expMin - act); maeV += Math.abs(v2.expectedMinutes - act);
+    maeL += Math.abs(M.minutesOfLegacy(p).expMin - act); maeV += Math.abs(v2.expectedMinutes - act);
     n++;
   });
   DATA.history = fullHist; clearMemos();

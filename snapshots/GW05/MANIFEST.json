@@ -1,0 +1,92 @@
+{
+ "gw": 5,
+ "captured": "2026-09-15",
+ "note": "pre-deadline state BEFORE the GW5 data refresh \u2014 the frozen truth the GW5 scorecard will be judged against (v45: first snapshot on the minutesV2 production spine)",
+ "files": {
+  "captains.json": {
+   "bytes": 2869,
+   "sha256": "9ecb2b8049fc3a2c",
+   "ok": true
+  },
+  "elite.json": {
+   "bytes": 304259,
+   "sha256": "6252bf59f2950d2e",
+   "ok": true
+  },
+  "fh-suggested.json": {
+   "bytes": 2747,
+   "sha256": "2e53a95241a2fd4c",
+   "ok": true
+  },
+  "fixtures.json": {
+   "bytes": 2677,
+   "sha256": "0c7604a05bf9cfa7",
+   "ok": true
+  },
+  "fplids.json": {
+   "bytes": 52738,
+   "sha256": "2c77873970749c27",
+   "ok": true
+  },
+  "fplmeta.json": {
+   "bytes": 10942,
+   "sha256": "970be09e93740638",
+   "ok": true
+  },
+  "history.json": {
+   "bytes": 69718,
+   "sha256": "a8c83ac606a45d2a",
+   "ok": true
+  },
+  "league.json": {
+   "bytes": 1778,
+   "sha256": "d25c2c82cb4d29fe",
+   "ok": true
+  },
+  "meta.json": {
+   "bytes": 232,
+   "sha256": "0fac6ce664245ae2",
+   "ok": true
+  },
+  "news.json": {
+   "bytes": 31170,
+   "sha256": "e9b2758785c50517",
+   "ok": true
+  },
+  "players.json": {
+   "bytes": 380306,
+   "sha256": "d9f2fa54acdf04ff",
+   "ok": true
+  },
+  "predictions.json": {
+   "bytes": 151334,
+   "sha256": "549c6e9770eba0f6",
+   "ok": true
+  },
+  "prices.json": {
+   "bytes": 4100,
+   "sha256": "0e16577c27f7f585",
+   "ok": true
+  },
+  "radar.json": {
+   "bytes": 21810,
+   "sha256": "ffbb11bbbdaaff97",
+   "ok": true
+  },
+  "results.json": {
+   "bytes": 3593,
+   "sha256": "6108c42f2afdb40a",
+   "ok": true
+  },
+  "teams.json": {
+   "bytes": 3168,
+   "sha256": "4c5707a0b25e1c0c",
+   "ok": true
+  },
+  "ticker.json": {
+   "bytes": 13091,
+   "sha256": "9227c17909a5d10c",
+   "ok": true
+  }
+ }
+}

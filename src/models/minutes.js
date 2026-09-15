@@ -1,6 +1,8 @@
 // ============ 👟 MINUTES V2 (v2.0 Phase 2) — selection & minutes ladder ============
-// minutesV2(p) — NOT wired into production forecasts yet. Built beside the legacy
-// startProb()/minutesOf() engine for A/B comparison (v2.0 audit, Phase 2). It uses
+// minutesV2(p) — the PRODUCTION minutes spine since v45 (GW4 holdout A/B verdict:
+// start-probability Brier 0.0885 vs legacy 0.1384, expected-minutes MAE 13.4 vs
+// 29.0). startProb() and minutesOf() delegate here; the legacy engine survives
+// as startProbLegacy() / minutesOfLegacy() for the ongoing per-GW A/B. It uses
 // ONLY pre-deadline evidence: GW1-N minute history, official status, official
 // chance_next and the public news line. Returns the audit-required ladder:
 //   { pStart, p60, p75, p90, expectedMinutes,

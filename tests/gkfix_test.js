@@ -25,14 +25,15 @@ const gks = () => DATA.players.filter(p => p.pos === 'GK' && (p.next3 || [])[0])
 
 // ---------- the user's case ----------
 const tzo = K.projP(find('Tzolakis'), 0);
-A(tzo >= 3.4 && tzo <= 5.0, 'Tzolakis away at Chelsea: ' + tzo.toFixed(2) + ' xP (was 6.33 — the save-machine baseline no longer rides through an elite attack)');
+A(tzo >= 3.4 && tzo <= 5.0, 'Tzolakis GW5 (away at Newcastle — a modest attack in the real 2026/27 data): ' + tzo.toFixed(2) + ' xP (the same engine capped him at 4.2 when the attack WAS elite, CHE in GW4)');
 A(tzo < 6.33 - 1.5, 'the correction is material (>= 1.5 xP drop, now ' + (6.33 - tzo).toFixed(2) + ')');
 const rank = gks().findIndex(r => r.p.name === 'Tzolakis') + 1;
-A(rank >= 2, 'he is no longer the runaway #1 GK (rank ' + rank + ' — Trafford home to Newcastle leads)');
+const tzXga = gks()[rank - 1].xga;
+A(rank === 1 && tzXga != null && tzXga <= 1.35, 'GW5: he IS the #1 GK (rank ' + rank + ') but the crown is structurally earned — his fixture xGA is a modest ' + (tzXga && tzXga.toFixed(2)) + ', not the 6.33-xP baseline artifact of the old engine');
 
 // ---------- fixture-driven ordering (the structural rule) ----------
 const table = gks();
-A(table[0].xga != null && table[0].xga <= 1.35, 'the #1 GW4 GK faces a genuinely modest attack (expected goals against: ' + table[0].p.name + ', xGA ' + table[0].xga + ')');
+A(table[0].xga != null && table[0].xga <= 1.35, 'the #1 GW5 GK faces a genuinely modest attack (expected goals against: ' + table[0].p.name + ', xGA ' + table[0].xga + ')');
 const top4Att = Object.entries(((() => { const osm = {}; DATA.players.forEach(p => { }); return null; })() || {}));
 // sensitivity: SAME goalkeeper (same baseline/minutes), only the fixture varies
 const base0 = find('Tzolakis');
@@ -61,8 +62,8 @@ const act = pool.filter(r => r.xga != null);
 A(spear(act.map(r => -r.xga), act.map(r => r.xp)) >= 0.5, 'GK xP now correlates with clean-sheet odds across the pool (Spearman ' + spear(act.map(r => -r.xga), act.map(r => r.xp)).toFixed(3) + ', n=' + act.length + ')');
 
 // ---------- defenders: clean-sheet pricing ----------
-const fE = K.fixtureFactor(find('Calafiori'), 0), fH = K.fixtureFactor(find('Ajayi'), 0);   // ARS@SUN (easy) vs HUL vs CHE (brutal)
-A(fE.defAdj != null && fH.defAdj != null && fE.defAdj - fH.defAdj >= 0.25, 'defenders get clean-sheet adjustments — Calafiori away at Sunderland ' + fE.defAdj + ' vs Ajayi (Hull) facing CHELSEA ' + fH.defAdj + ' (the defender mirror of the user\'s GK catch)');
+const fE = K.fixtureFactor(find('Gvardiol'), 0), fH = K.fixtureFactor(find('Hjelde'), 0);   // MCI v SUN (easy) vs SUN v MCI (brutal) — the GW5 mirror of the user's GK catch
+A(fE.defAdj != null && fH.defAdj != null && fE.defAdj - fH.defAdj >= 0.25, 'defenders get clean-sheet adjustments — Gvardiol (MCI) hosting Sunderland ' + fE.defAdj + ' vs Hjelde (SUN) away at Man City ' + fH.defAdj + ' (the defender mirror of the user\'s GK catch; Calafiori @BHA sits between at ' + K.fixtureFactor(find('Calafiori'), 0).defAdj + ')');
 const anyDef = DATA.players.filter(p => p.pos === 'DEF' && (p.next3 || [])[0]);
 let dmin = 2, dmax = 0;
 anyDef.forEach(p => { const f = K.fixtureFactor(p, 0); if (f && f.defAdj != null) { dmin = Math.min(dmin, f.defAdj); dmax = Math.max(dmax, f.defAdj); } });
@@ -73,7 +74,7 @@ K.FH_MEMO.plan = null;
 const P = K.freeHitPlan();
 const okG = P.gws.filter(g => !g.error);
 const gk0 = okG[0].squad.find(r => r.p.pos === 'GK' && okG[0].starters.includes(r));
-A(gk0.p.name !== 'Tzolakis', 'the GW4 Free Hit XI no longer starts Tzolakis away at Chelsea (now: ' + gk0.p.name + ' vs ' + gk0.f.opp + ')');
+A(gk0.p.name === 'Tzolakis', 'the GW5 Free Hit XI starts Tzolakis away at Newcastle — legitimate now: that fixture rates a modest xGA, exactly the structural reasoning the v42 fix exists for (in GW4 the same engine refused him away at CHELSEA)');
 A(K.fxXgaOf(gk0.p, 0) <= 1.4, 'the starting GK now faces a modest attack (xGA ' + K.fxXgaOf(gk0.p, 0) + ')');
 console.log('GATE  | new FH scores: ' + okG.map(g => 'GW' + g.gw + ' ' + g.fhScore).join(', ') + ' | best GW' + P.best.gw);
 

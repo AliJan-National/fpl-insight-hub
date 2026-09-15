@@ -5,11 +5,11 @@
 // models again. Official FPL ep_next is kept only as a labelled reference field.
 // Everything is a deterministic model estimate from real GW1-N data.
 const MIN_MEMO = {}, FC_MEMO = {};
-function minutesOf(p) {
+function minutesOfLegacy(p) {
   const key = 'm|' + p.id + '|' + (p.mins || 0) + '|' + (p.status || 'a');
   if (MIN_MEMO[key]) return MIN_MEMO[key];
   const rows = (DATA.history || {})[p.id] || [];
-  const ps = startProb(p);
+  const ps = startProbLegacy(p);
   let starts = 0, stMins = 0, allMins = 0, apps = 0;
   rows.forEach(r => { const m = r[4] || 0; allMins += m; if (m > 0) apps++; if (m >= 60) { starts++; stMins += m; } });
   // position prior for "real minutes per start" (whole-pool, memoised)
@@ -28,6 +28,23 @@ function minutesOf(p) {
   const o = { pStart: Math.round(ps * 100) / 100, p60, expMin, n: rows.length, avgAll: rows.length ? Math.round(100 * allMins / rows.length) / 100 : 0 };
   MIN_MEMO[key] = o;
   return o;
+}
+// v45 PRODUCTION SPINE SWITCH: minutesOf() now serves the minutesV2() ladder
+// (audit Phase 2, GW4 holdout verdict — see docs/MINUTESV2-v45.md). The legacy
+// engine survives as minutesOfLegacy() for the ongoing per-GW A/B. Field names
+// pStart/p60/expMin/n/avgAll are unchanged so every consumer keeps working;
+// p75/p90/confidence/evidence are added for every surface that wants them.
+function minutesOf(p) {
+  const v = minutesV2(p);
+  const rows = (DATA.history || {})[p.id] || [];
+  const allMins = rows.reduce((s, r) => s + (r[4] || 0), 0);
+  return {
+    pStart: v.pStart, p60: v.p60, expMin: v.expectedMinutes,
+    p75: v.p75, p90: v.p90, confidence: v.confidence, evidence: v.evidence,
+    n: v.n, starts: v.starts, minsPerStart: v.minsPerStart,
+    avgAll: rows.length ? Math.round(100 * allMins / rows.length) / 100 : 0,
+    engine: 'V2'
+  };
 }
 function confOf(p) {
   const P = playerProb(p);

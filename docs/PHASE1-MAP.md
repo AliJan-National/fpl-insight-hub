@@ -19,7 +19,7 @@ Tranche 2 added `src/models/minutes.js` (Phase 2 minutes engine, NOT in producti
 | 3 | `src/intelligence/visuals.js` | 1034–1382 | 22,399 | Visuals v37 (market map, elite gap, chip timeline, bargain map) |
 | 4 | `src/legacy/part-b.js` | 1383–2479 | 80,934 | opponent-strength, wildcard lab, decision matrix, assistant, mini league, pro suite |
 | 5 | `src/models/fixture.js` | 2480–2657 | 9,692 | fixture-response model (calibration, smooth grading, projP base) |
-| 5b | `src/models/minutes.js` | NEW (Phase 2) | ~4,700 | minutesV2 ladder — built beside legacy, not yet in production |
+| 5b | `src/models/minutes.js` | NEW (Phase 2) | ~4,700 | minutesV2 ladder — **PRODUCTION SPINE since v45** (GW4 holdout A/B: Brier -35%, minutes MAE -54%); legacy survives as startProbLegacy/minutesOfLegacy |
 | 5c | `src/models/team-strength.js` | NEW (Phase 3) | ~5,700 | teamRatingsV2 + expectedGoals feed — built beside legacy, not yet in production |
 | 5d | `src/models/fixture-v2.js` | NEW (Phase 4) | ~4,500 | fixtureDifficultyV2 position-aware grades + posFixGrade bridge — beside legacy, not in production |
 | 4b | `src/decisions/freehit.js` | NEW (user feature) | ~11,000 | Free Hit Lab: one-GW squad optimizer for 3 GWs + grounded assistant — PRODUCTION (its own tab) |

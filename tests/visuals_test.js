@@ -33,7 +33,9 @@ A(isFinite(L.medNet) && L.xThr === 5.5 && L.xmax >= 200 && L.xmax <= 800 && L.ym
 const wissa = L.dots.find(d => d.p.name === 'Wissa');
 A(wissa && wissa.q === 'fomo', 'Wissa (+175k, xP ' + (wissa ? wissa.xp.toFixed(1) : '?') + ') lands in the FOMO corner - matching his "CROWD AHEAD" verdict row');
 const gakpo = L.dots.find(d => d.p.name === 'Gakpo');
-A(gakpo && gakpo.q === 'buy', 'Gakpo (+426k, xP ' + (gakpo ? gakpo.xp.toFixed(1) : '?') + ') lands in the CROWD+MODEL corner - matching his "MODEL AGREES" row');
+A(gakpo && gakpo.q === 'fade', 'Gakpo (net ' + (gakpo ? gakpo.net : '?') + ', xP ' + (gakpo ? gakpo.xp.toFixed(1) : '?') + ') lands in the FADE corner after GW4 - the crowd bailed AND the model cooled (his 30-minute withdrawal is priced in)');
+const bogle = L.dots.find(d => d.p.name === 'Bogle');
+A(bogle && bogle.q === 'buy', 'Bogle (net +' + (bogle ? bogle.net : '?') + ', xP ' + (bogle ? bogle.xp.toFixed(1) : '?') + ') is the new CROWD+MODEL corner - matching his "MODEL AGREES" row');
 const svgA = V.crowdMapSVG(DATA.players);
 A(svgA.indexOf('<svg') === 0 && clean(svgA), 'crowd map SVG builds with no NaN/undefined');
 A(svgA.indexOf('CROWD + MODEL AGREE') >= 0 && svgA.indexOf('CROWD AHEAD') >= 0, 'quadrant corners are labelled so the chart explains itself');

@@ -46,3 +46,8 @@ including a full dress rehearsal of the post-refresh GW4 path) · CI section 12.
    never captured shows only the actual-best side (with an explicit note).
 3. "Improve yourself" is deliberately human-in-the-loop: the learn panel feeds
    the phase backtests; we do not auto-tune weights on one GW of data.
+
+## Snapshot log
+
+- **GW04** (captured 2026-09-13): FH suggestion 92.4 xP, captain Gakpo. Final: 69 pts vs actual-best 150 (gap 81). Hits: Bogle 15, João Pedro 12, De Cuyper 11, Tarkowski 8, Calafiori 6. Miss: Gakpo C 2 (30 min, withdrawn). v42 defensive spine went 5-for-5.
+- **GW05** (captured 2026-09-15, first on the v45 minutesV2 spine): FH suggestion 90.4 xP, captain Bogle 10.0, formation 4-4-2. XI: Tzolakis, Bogle, Gvardiol, Tarkowski, Guéhi, Gibbs-White, Groß, Saka, Tavernier, Haaland, João Pedro. Groß enters off the GW4 learn panel (was our #1 under-rated). The audit card will score it automatically once GW5 completes and the data refreshes.

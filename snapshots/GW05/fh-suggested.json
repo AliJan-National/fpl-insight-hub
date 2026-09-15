@@ -1,0 +1,176 @@
+{
+ "gw": 5,
+ "captured": "2026-09-15",
+ "budget": 100,
+ "fhScore": 90.4,
+ "formation": "4-4-2",
+ "captainId": 330,
+ "note": "FROZEN pre-deadline: the Free Hit squad our model suggested for GW5, computed from snapshots/GW05 data (v45 minutesV2 spine) BEFORE any GW5 results existed. Judged by fh-audit against actual GW5 points.",
+ "squad": [
+  {
+   "id": 572,
+   "name": "Tzolakis",
+   "pos": "GK",
+   "team": "HUL",
+   "cost": 4.6,
+   "xp": 4.4,
+   "opp": "NEW",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 496,
+   "name": "Kinsky",
+   "pos": "GK",
+   "team": "TOT",
+   "cost": 4.5,
+   "xp": 3.9,
+   "opp": "AVL",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 330,
+   "name": "Bogle",
+   "pos": "DEF",
+   "team": "LEE",
+   "cost": 4.5,
+   "xp": 10,
+   "opp": "CRY",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 391,
+   "name": "Gvardiol",
+   "pos": "DEF",
+   "team": "MCI",
+   "cost": 5.7,
+   "xp": 8.7,
+   "opp": "SUN",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 229,
+   "name": "Tarkowski",
+   "pos": "DEF",
+   "team": "EVE",
+   "cost": 6.1,
+   "xp": 7.2,
+   "opp": "IPS",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 388,
+   "name": "Guéhi",
+   "pos": "DEF",
+   "team": "MCI",
+   "cost": 6,
+   "xp": 7.2,
+   "opp": "SUN",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 282,
+   "name": "Giles",
+   "pos": "DEF",
+   "team": "HUL",
+   "cost": 4,
+   "xp": 5.9,
+   "opp": "NEW",
+   "ha": "A",
+   "starter": false
+  },
+  {
+   "id": 480,
+   "name": "Gibbs-White",
+   "pos": "MID",
+   "team": "NFO",
+   "cost": 7.9,
+   "xp": 7.2,
+   "opp": "COV",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 124,
+   "name": "Groß",
+   "pos": "MID",
+   "team": "BHA",
+   "cost": 5.6,
+   "xp": 6.9,
+   "opp": "ARS",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 12,
+   "name": "Saka",
+   "pos": "MID",
+   "team": "ARS",
+   "cost": 9.5,
+   "xp": 6.9,
+   "opp": "BHA",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 68,
+   "name": "Tavernier",
+   "pos": "MID",
+   "team": "BOU",
+   "cost": 6.1,
+   "xp": 6.8,
+   "opp": "LIV",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 605,
+   "name": "Yalcouyé",
+   "pos": "MID",
+   "team": "BHA",
+   "cost": 4.5,
+   "xp": 3.1,
+   "opp": "ARS",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 411,
+   "name": "Haaland",
+   "pos": "FWD",
+   "team": "MCI",
+   "cost": 15.5,
+   "xp": 8.4,
+   "opp": "SUN",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 165,
+   "name": "João Pedro",
+   "pos": "FWD",
+   "team": "CHE",
+   "cost": 7.8,
+   "xp": 6.9,
+   "opp": "BRE",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 316,
+   "name": "Emersonn",
+   "pos": "FWD",
+   "team": "IPS",
+   "cost": 5.5,
+   "xp": 3.6,
+   "opp": "EVE",
+   "ha": "A",
+   "starter": false
+  }
+ ]
+}

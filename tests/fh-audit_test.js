@@ -19,7 +19,7 @@ const T = globalThis.__A;
 const A = (c, m) => { if (!c) { console.error('FAIL |', m); process.exitCode = 1; } else console.log('PASS |', m); };
 
 // ---------- completed-GW detection ----------
-A(T.fhaCompletedGw() === 3, 'detects the latest completed GW (3 with current data)');
+A(T.fhaCompletedGw() === 4, 'detects the latest completed GW (4 with refreshed data)');
 
 // ---------- actual-best squad (GW3, real data) ----------
 const best3 = T.fhaBestSquad(3, 100);
@@ -92,7 +92,7 @@ global.fetch = (u) => Promise.resolve({ ok: /fh-suggested/.test(u) || /predictio
   global.fetch = () => Promise.resolve({ ok: false });
   await T.renderFreeHitAudit();
   A(/no frozen pre-deadline suggestion/.test(els.fhAudit.innerHTML) && /never .recompute./.test(els.fhAudit.innerHTML), 'a GW without a snapshot gets the honest "we will not recompute" message');
-  A(/Actual best GW3/.test(els.fhAudit.innerHTML), 'the actual-best total still shows for GWs without a snapshot');
+  A(/Actual best GW4/.test(els.fhAudit.innerHTML), 'the actual-best total still shows for GWs without a snapshot');
   global.fetch = () => new Promise(() => {});
   try { T.renderFreeHit(); } catch (e) { console.error('FAIL | renderFreeHit threw: ' + e.message); process.exitCode = 1; }
   console.log('PASS | renderFreeHit fires the audit without throwing');

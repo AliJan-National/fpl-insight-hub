@@ -100,11 +100,11 @@ A((ch.eliteFlow.innerHTML || '').indexOf('elites bought') >= 0, 'renderMarketPul
 A((ch.chipTrends.innerHTML || '').indexOf('Wildcard') >= 0, 'your own used chip appears in the chip panel');
 
 // ---------- v36 fixture grading (the fix behind the Chelsea question) ----------
-const pal = DATA.players.find(p => p.name === 'Palmer' && p.team === 'CHE');
-const f0 = P.fixtureFactor(pal, 0), f1 = P.fixtureFactor(pal, 1), f2 = P.fixtureFactor(pal, 2);
-A(f0 && f0.afdr === 2 && f0.opp === 'HUL' && f0.xf > 1, 'v36: Chelsea vs Hull (H) — a green displayed fixture now BOOSTS xP (multiplier ' + f0.xf + ' > 1)');
-A(f0.xf !== f1.xf && f1.xf !== f2.xf, 'v36: the three Chelsea gameweeks get three DIFFERENT multipliers (HUL/BRE/BOU no longer collapsed)');
-A(f1.xf < f0.xf, 'v36: Brentford away (tougher defence) is graded harder than Hull at home');
+const haa = DATA.players.find(p => p.name === 'Haaland');
+const f0 = P.fixtureFactor(haa, 0), f1 = P.fixtureFactor(haa, 1), f2 = P.fixtureFactor(haa, 2);
+A(f0 && f0.afdr === 2 && f0.opp === 'SUN' && f0.xf > 1, 'v36: Man City vs Sunderland (H) — a green displayed fixture BOOSTS xP (multiplier ' + f0.xf + ' > 1)');
+A(f0.xf !== f1.xf && f1.xf !== f2.xf, 'v36: the three City gameweeks get three DIFFERENT multipliers (SUN/LIV/IPS not collapsed)');
+A(f1.xf < f0.xf, 'v36: Liverpool away (elite defence) is graded harder than Sunderland at home');
 A(f0.src === 'calibration+displayed-fdr' && f0.calXf != null, 'v36: multiplier blends opponent calibration with the difficulty the app displays');
 const smooth = P.fixSmooth;
 const bands = [{ n: 1, xf: 0.8, pf: 0.6, c: 0.7 }, { n: 1, xf: 1.0, pf: 1.0, c: 1.0 }, { n: 1, xf: 1.3, pf: 1.5, c: 1.4 }];

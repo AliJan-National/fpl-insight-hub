@@ -382,7 +382,7 @@ function pairDecision(A, B, q0) {
       + '<div style="display:flex;justify-content:space-between"><span class="muted">xPts next GW <i>(expected)</i></span><b>' + projP(p, 0).toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">5-GW total</span><b>' + t.toFixed(1) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between"><span class="muted">reliability</span><b>' + Math.round(r * 100) + '%</b></div>'
-      + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/270</b></div>'
+      + '<div style="display:flex;justify-content:space-between"><span class="muted">minutes</span><b style="color:' + (p.mins >= 240 ? 'var(--green)' : p.mins >= 150 ? 'var(--amber)' : 'var(--red)') + '">' + p.mins + '/' + (90 * ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3)) + '</b></div>'
       + selLine(p)
       + ppRows(p)
       + distBar(p)
@@ -415,7 +415,7 @@ function pairDecision(A, B, q0) {
   const loMin = (lead === A ? B : A), hiP = (lead === A ? A : B);
   if (loMin.mins < 200 && hiP.mins - loMin.mins >= 90) {
     const tf = window.TF[loMin.team] || {};
-    lines.push(esc(loMin.name) + ' has only ' + loMin.mins + '/270 minutes (selection risk) — ' + (tf.rank <= 3 ? 'his team (' + loMin.team + ') has an elite defence (form #' + tf.rank + ', xGD ' + (tf.xgd >= 0 ? '+' : '') + (+tf.xgd).toFixed(2) + '/g), but clean sheets only pay when he starts.' : 'the official next-GW projection (' + loMin.ep_next + ' vs ' + hiP.ep_next + ') already prices that uncertainty in.'));
+    lines.push(esc(loMin.name) + ' has only ' + loMin.mins + '/' + (90 * ((DATA.fplmeta && DATA.fplmeta.current_gw) || 3)) + ' minutes (selection risk) — ' + (tf.rank <= 3 ? 'his team (' + loMin.team + ') has an elite defence (form #' + tf.rank + ', xGD ' + (tf.xgd >= 0 ? '+' : '') + (+tf.xgd).toFixed(2) + '/g), but clean sheets only pay when he starts.' : 'the official next-GW projection (' + loMin.ep_next + ' vs ' + hiP.ep_next + ') already prices that uncertainty in.'));
   }
   let personal = '';
   if (ctx && ctx.squad && ctx.squad.length) {
@@ -1067,7 +1067,7 @@ function selState(p) {
   rows.forEach(r => { n++; mins += r[4] || 0; if ((r[4] || 0) >= 60) starts++; });
   return { n, starts, mins };
 }
-function startProb(p, over) {
+function startProbLegacy(p, over) {
   const mins = over && over.mins != null ? over.mins : (p.mins || 0);
   const status = over && over.status != null ? over.status : (p.status || 'a');
   const key = p.id + '|' + mins + '|' + status;
@@ -1081,6 +1081,17 @@ function startProb(p, over) {
   const pStart = Math.min(0.97, Math.max(0.02, statusBase * (0.3 + 0.7 * evidence)));
   SEL_MEMO[key] = pStart;
   return pStart;
+}
+// v45 PRODUCTION SPINE SWITCH (audit Phase 2 mandate, GW4 holdout A/B verdict:
+// start-probability Brier 0.0885 vs legacy 0.1384, expected-minutes MAE 13.4 vs
+// 29.0). startProb() now serves the minutesV2() ladder. The legacy engine stays
+// beside as startProbLegacy() so the audit keeps scoring both engines every GW.
+function startProb(p, over) {
+  const realMins = p.mins || 0, realStatus = p.status || 'a';
+  const oMins = over && over.mins != null ? over.mins : realMins;
+  const oStatus = over && over.status != null ? over.status : realStatus;
+  if (over && (oMins !== realMins || oStatus !== realStatus)) return startProbLegacy(p, over); // counterfactual what-if
+  return minutesV2(p).pStart;
 }
 function selLabel(pStart) {
   if (pStart >= 0.9) return { txt: 'nailed-on', c: 'var(--green)' };
