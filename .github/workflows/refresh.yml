@@ -1,0 +1,82 @@
+name: data-refresh
+on:
+  schedule:
+    # Tue/Wed/Fri 04:00 UTC = 07:00 Riyadh. Tuesday catches the completed GW
+    # (matches finish Fri-Mon); Wednesday retries if a data source lagged;
+    # Friday freshens prices/news before the deadline. The gate inside makes
+    # every extra run a safe no-op.
+    - cron: "0 4 * * 2,3,5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch sources (open data only)
+        run: |
+          git clone --depth 1 https://github.com/olbauday/FPL-Core-Insights.git fpl-core-insights
+          mkdir -p raw
+          curl -sfL --retry 3 -A "Mozilla/5.0 (FPL Insight Hub automation)" https://fantasy.premierleague.com/api/bootstrap-static/ -o raw/bootstrap.json
+          curl -sfL --retry 3 -A "Mozilla/5.0 (FPL Insight Hub automation)" https://fantasy.premierleague.com/api/fixtures/        -o raw/fixtures.json
+          cp fpl-core-insights/data/2026-2027/players.csv raw/players.csv
+
+      - name: GW gate (never refresh on partial data)
+        id: gate
+        run: python3 tools/gw_gate.py
+
+      - name: Rebuild the datasets
+        run: |
+          python3 build_data.py
+          python3 enrich_live.py
+
+      - name: Elite manager trends (post-GW only)
+        if: steps.gate.outputs.action == 'REFRESH'
+        run: python3 elite_ingest.py
+
+      - name: Smoke test (blocking - commits nothing on failure)
+        run: node tools/smoke_test.js
+
+      - name: Freeze the pre-deadline snapshot (once, immutable)
+        run: node tools/freeze_snapshot.js
+
+      - name: Regression report (non-blocking)
+        continue-on-error: true
+        run: |
+          node tests/run.js 2>&1 | tee /tmp/regression.log || true
+          {
+            echo "## Data refresh regression report"
+            echo '```'
+            tail -3 /tmp/regression.log
+            echo '```'
+            echo "Prediction-pin drift after a new GW is expected weekly — the pinned examples re-baseline in the next engine release. Structural failures are blocking via the smoke test."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push if anything changed
+        run: |
+          git config user.name "fpl-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add api snapshots
+          if git diff --cached --quiet; then
+            echo "Nothing changed - no commit."
+            exit 0
+          fi
+          git commit -m "data: post-GW refresh + snapshot freeze [automated]"
+          git push

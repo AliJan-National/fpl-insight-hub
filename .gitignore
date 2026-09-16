@@ -1,2 +1,5 @@
 # never commit release zips (they are downloaded to D:\10. Deepseek\Arena Ai)
 *.zip
+# pipeline scratch (fetched fresh by the workflow / refresh.sh)
+raw/
+fpl-core-insights/

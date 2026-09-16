@@ -58,7 +58,7 @@ A(ct.rows.every(r => r.used + r.hold === ct.sample && r.pct >= 0 && r.pct <= 100
 const realCounts = {};
 DATA.elite.elites.forEach(e => Object.values(e.chips || {}).forEach(k => realCounts[k] = (realCounts[k] || 0) + 1));
 A(ct.rows.every(r => r.used === (realCounts[r.key] || 0)), 'chip counts match the real chips recorded for those 40 managers exactly');
-A(ct.rows.find(r => r.key === 'bboost').used === 38, 'Bench Boost really was played by 38 of 40 (the dataset says so)');
+A(ct.rows.find(r => r.key === 'bboost').used === 39, 'Bench Boost really was played by 39 of 40 (the GW4 cohort turnover added one)');
 A(ct.own.join(',') === 'Wildcard' && ct.ownHold.indexOf('Bench Boost') >= 0, 'your own chips are read from your loaded team (used vs still holding)');
 A(ct.haveTeam === true && P.chipTrends(DATA.elite, [], [], false).haveTeam === false, 'chip panel knows whether a team is loaded (no false "you still hold" claim)');
 const noTeamHtml = P.chipTrendsHtml(P.chipTrends(DATA.elite, [], [], false));

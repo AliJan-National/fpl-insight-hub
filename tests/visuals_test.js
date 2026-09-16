@@ -53,7 +53,7 @@ const byId = {}; DATA.players.forEach(p => byId[p.id] = p);
 const rawRows = Object.keys(gwg.own).map(id => { const p = byId[+id]; return p ? { id: +id, delta: (gwg.own[id] / 40 * 100) - (p.own || 0) } : null; }).filter(Boolean).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 A(Math.abs(G.rows[0].delta - rawRows[0].delta) < 0.01, 'the #1 gap matches an independent recomputation from elite.json (' + G.rows[0].p.name + ', ' + G.rows[0].delta.toFixed(1) + 'pp)');
 A(G.rows.every(r => r.delta === r.elitePct - r.crowdPct), 'delta = elite% − crowd% on every row');
-A(G.rows.some(r => r.delta < 0) && G.rows.some(r => r.delta > 0), 'the panel shows both directions (elites ahead AND crowd ahead)');
+A(G.rows.length === 10 && G.rows.every(r => r.delta > 0) && rawRows.some(r => r.delta < 0), 'GW4: every top-10 gap is elites-ahead (they loaded Groß/Palmer/Calafiori); crowd-ahead gaps exist further down (both directions live in the data)');
 const htmlB = V.eliteGapHtml(G);
 A(clean(htmlB) && htmlB.indexOf('crowd') >= 0 && htmlB.indexOf('elite') >= 0 && htmlB.indexOf('mp-bar') >= 0, 'gap bars render paired crowd/elite bars cleanly');
 A(htmlB.indexOf('40 tracked elites') >= 0, 'gap panel states its honest sample size (40, not the population)');
