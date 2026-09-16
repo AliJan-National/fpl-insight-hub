@@ -1,7 +1,7 @@
 {
  "gw": 5,
  "captured": "2026-09-15",
- "note": "pre-deadline state BEFORE the GW5 data refresh \u2014 the frozen truth the GW5 scorecard will be judged against (v45: first snapshot on the minutesV2 production spine)",
+ "note": "pre-deadline state BEFORE the GW5 data refresh \u2014 the frozen truth the GW5 scorecard will be judged against (v45: first snapshot on the minutesV2 production spine) \u00b7 CORRECTION 2026-09-15 (still pre-deadline): ticker.json regenerated to fix the hardcoded past/future GW split that blanked the GW4 column \u2014 predictions.json and fh-suggested.json are untouched.",
  "files": {
   "captains.json": {
    "bytes": 2869,
@@ -84,8 +84,8 @@
    "ok": true
   },
   "ticker.json": {
-   "bytes": 13091,
-   "sha256": "9227c17909a5d10c",
+   "bytes": 15576,
+   "sha256": "7c5bfb7deac174e2",
    "ok": true
   }
  }
