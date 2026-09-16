@@ -176,6 +176,7 @@ function fhRow(r, g) {
   return '<tr' + (st ? '' : ' style="opacity:.62"') + '><td>' + posBadge(r.p.pos) + '</td><td><b>' + esc(r.p.name) + '</b>' + (cap ? ' <span class="mp-chip ok">C ×2</span>' : '') + (st ? '' : ' <span class="mp-chip muted">bench</span>') + (r.p.status === 'd' ? ' <span class="mp-chip warn">doubt</span>' : '') + '</td><td>' + esc(r.p.team) + '</td><td class="num">£' + r.p.cost + 'm</td><td class="num"><b>' + r.xp.toFixed(1) + '</b></td><td>' + esc(r.f.opp) + ' <span class="fdr f' + (r.f.fdr || 3) + '">' + (r.f.fdr || 3) + '</span></td></tr>';
 }
 function renderFreeHit() {
+  try { if (typeof renderReconcile === 'function') renderReconcile('#fhReconcile'); } catch (e) { console.error('[RECONCILE-FH]', e); }
   const host = $('#fhBody'); if (!host) return;
   try {
     const P = freeHitPlan();

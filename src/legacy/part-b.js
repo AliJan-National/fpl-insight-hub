@@ -157,6 +157,7 @@ function buildWildcard() {
 }
 function renderWildcard() {
   if (!WC) buildWildcard();
+  try { if (typeof renderReconcile === 'function') renderReconcile('#wcReconcile'); } catch (e) { console.error('[RECONCILE-WC]', e); }
   const fdrM = { 1: 1.15, 2: 1.08, 3: 1, 4: 0.92, 5: 0.85 };
   const all = Object.values(WC.pick).flat().sort((a, b) => pScore(b) - pScore(a));
   $('#wcMeta').textContent = `· GW${DATA.fplmeta.current_gw + 1} edition · ${WC_H}-GW fixture window · spend £${WC.spent.toFixed(1)}m of £100m · same model as the Fixtures ticker`;
@@ -566,6 +567,22 @@ function askAI(q) {
     }).join(', ');
     return `Global captain picks this GW (official FPL xP / ep_next — not our model) with edge vs the #1 field pick: ${pickTxt}.<br>`
       + `<span class="mrow">💡 Captain choice is <b>leverage</b>: an expected edge over the field only matters if you own the pick and rivals don't captain it. Load your team + mini league for a personalised verdict.</span>`;
+  }
+  if (/(why|how come|reason|how is it).{0,60}(not in|missing|absent|left out|skipped).{0,40}(free hit|fh|wildcard|wc\b|team)|((free hit|wildcard).{0,30}(conflict|disagree|differ|contradict|illogical))/.test(Q)) {
+    const R = (typeof reconcileSet === 'function') ? reconcileSet() : null;
+    if (!R) return 'The cross-check needs both engines computed — open the Wildcard and Free Hit tabs, then ask again.';
+    const hit = pl ? (R.wcOnly.find(r => r.name === pl.name) ? { side: 'wc', r: R.wcOnly.find(r => r.name === pl.name) }
+      : R.fhOnly.find(r => r.name === pl.name) ? { side: 'fh', r: R.fhOnly.find(r => r.name === pl.name) } : null) : null;
+    if (hit && hit.side === 'wc') {
+      const r = hit.r;
+      return `🧩 <b>${esc(r.name)}</b> — the Wildcard wants him (${r.pScore} pScore over ${R.horizon} GWs at £${r.price}m), but no Free Hit squad takes him. His best FH week is <b>GW${r.bestGw}</b>: ${r.xp} xP = <b>#${r.rank} ${r.pos}</b>${r.ahead.length ? '; that week the FH starts ' + r.ahead.map(a => esc(a.name) + ' (' + a.xp + ')').join(', ') : ''}.<br><span class="mrow">One-week ceiling vs ${R.horizon}-GW value — two different questions, two right answers. The <b>Wildcard Lab</b> and <b>Free Hit</b> tabs now carry the full cross-check card for every player.</span>`;
+    }
+    if (hit && hit.side === 'fh') {
+      const r = hit.r;
+      return `🧩 <b>${esc(r.name)}</b> — the Free Hit starts him in GW${r.gw} (${r.xp} xP — one-week ceiling), but the Wildcard skips him: ${r.pScore} pScore over ${R.horizon} GWs at £${r.price}m lost the £100m budget race (its ${r.pos}s: ${esc(r.wcPos)}).<br><span class="mrow">One-week ceiling vs ${R.horizon}-GW value — two different questions, two right answers. The tabs carry the full cross-check card.</span>`;
+    }
+    const ex = R.wcOnly[0];
+    return `🧩 They share ${R.both} of 15. The Wildcard optimizes ${R.horizon} GWs inside £100m (price efficiency matters); the Free Hit maximizes one week (GW${R.bestGw}).${ex ? ` Example: <b>${esc(ex.name)}</b> — Wildcard-only: #${ex.rank} ${ex.pos} for GW${ex.bestGw} (${ex.xp} xP) but ${ex.pScore} pScore over ${R.horizon} GWs at £${ex.price}m.` : ''}<br><span class="mrow">Ask about a player by name ("why is X not in the free hit team") for his specific reason.</span>`;
   }
   if (/wildcard/.test(Q)) {
     renderWildcard();
