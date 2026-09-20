@@ -1,8 +1,8 @@
 """Build JSON datasets for the FPL dashboard from the FPL-Core-Insights repo CSVs."""
-import pandas as pd, glob, json, os
+import pandas as pd, glob, json, os, re, csv
 
 BASE = 'fpl-core-insights/data/2026-2027'
-OUT = 'api'
+OUT = 'fpl_dashboard/api'
 os.makedirs(OUT, exist_ok=True)
 
 teams = pd.read_csv(f'{BASE}/teams.csv')
@@ -304,4 +304,132 @@ for f in gwfiles:
             round(cum[0] - p[0], 2), round(cum[1] - p[1], 2), int(cum[2] - p[2]),
             int(cum[3] - p[3]), int(cum[4] - p[4]), round(float(r.now_cost or 0), 1)])
 dump('history', hist)
+
+# ---------------- 🧭 CHANNELS (v2.0 Phase 5a): pitch-zone attack/defence profiles ----------------
+# Source: By Gameweek/GW*/shots.csv — every real shot with start_y in ATTACKING
+# view (0-100, both teams normalised; validated: Mbeumo avg 62.8 = right wing).
+# Channels: L = y < 40, C = 40-60, R = > 60. Team profiles are xG-weighted
+# shares shrunk toward the league profile (K=30 shots) so a few GWs of noise
+# cannot mint a fake flank monster. Player lateral position = his own shot
+# cloud (n>=4 and |mean-50|>=5 to classify a side). ANALYSIS-ONLY until the
+# Phase 8 A/B gate promotes it into the xP spine.
+CH_K = 2.5  # prior strength in xG-units (~35% weight at GW4, fading as the season grows)
+def _chan(y): return 0 if y < 40 else 1 if y < 60 else 2
+
+# match_ids use FULL names ('manchester-city'), teams.csv uses short ones
+# ('man-city') — alias the 8 that differ; warn loudly if anything is unmapped.
+_SLUG_ALIAS = {'afc-bournemouth': 'bournemouth', 'brighton-hove-albion': 'brighton',
+               'leeds-united': 'leeds', 'manchester-city': 'man-city',
+               'manchester-united': 'man-utd', 'newcastle-united': 'newcastle',
+               'nottingham-forest': 'nott-m-forest', 'tottenham-hotspur': 'spurs'}
+_slug_misses = set()
+slug2code = {}
+for _, t in teams.iterrows():
+    slug2code[re.sub(r'[^a-z0-9]+', '-', str(t['name']).lower()).strip('-')] = int(t['code'])
+def _code_of_slug(s):
+    c = slug2code.get(_SLUG_ALIAS.get(s, s))
+    if c is None: _slug_misses.add(s)
+    return c
+pid2meta = {}
+for _, r in pl.iterrows():
+    pid2meta[int(r['player_id'])] = (str(r['web_name']), int(r['team_code']), str(r['position']))
+
+finished_ids = set()
+for mf in glob.glob(f'{BASE}/By Tournament/Premier League/GW*/matches.csv'):
+    mdf = pd.read_csv(mf)
+    for _, r in mdf[mdf['finished'] == True].iterrows():
+        finished_ids.add(str(r['match_id']))
+
+_ch_att_s, _ch_att_x = {}, {}
+_ch_def_s, _ch_def_x = {}, {}
+_ch_py = {}
+_ch_shots = _ch_matched = _ch_dropped = 0
+for sf in sorted(glob.glob(f'{BASE}/By Gameweek/GW*/shots.csv'),
+                 key=lambda f: int(f.split('GW')[1].split(os.sep)[0])):
+    for r in csv.DictReader(open(sf)):
+        mid = str(r.get('match_id') or '')
+        if mid not in finished_ids:
+            _ch_dropped += 1
+            continue
+        core = mid.split('prem-')[-1]
+        if '-vs-' not in core:
+            _ch_dropped += 1
+            continue
+        a_slug, b_slug = core.rsplit('-vs-', 1)
+        ac, bc = _code_of_slug(a_slug), _code_of_slug(b_slug)
+        if ac is None or bc is None:
+            _ch_dropped += 1
+            continue
+        try:
+            y = float(r.get('start_y') or 0); xg = float(r.get('xg') or 0)
+            pid = int(float(r.get('player_id') or 0))
+        except ValueError:
+            _ch_dropped += 1
+            continue
+        is_home = str(r.get('is_home')) == 'True'
+        att_c, def_c = (ac, bc) if is_home else (bc, ac)
+        c = _chan(y)
+        for d, key in ((_ch_att_s, att_c), (_ch_def_s, def_c)):
+            row = d.setdefault(key, [0, 0, 0]); row[c] += 1
+        for d, key in ((_ch_att_x, att_c), (_ch_def_x, def_c)):
+            row = d.setdefault(key, [0.0, 0.0, 0.0]); row[c] += xg
+        _ch_py.setdefault(pid, []).append(y)
+        _ch_shots += 1; _ch_matched += 1
+
+def _shrunk(xrow, k):
+    tot = sum(xrow) or 1.0
+    lg = [x / tot for x in xrow]
+    return lg
+_lg_att = [0.0, 0.0, 0.0]; _lg_def = [0.0, 0.0, 0.0]
+for row in _ch_att_x.values():
+    for i in range(3): _lg_att[i] += row[i]
+for row in _ch_def_x.values():
+    for i in range(3): _lg_def[i] += row[i]
+_lg_att = [v / (sum(_lg_att) or 1.0) for v in _lg_att]
+_lg_def = [v / (sum(_lg_def) or 1.0) for v in _lg_def]
+
+def _team_block(srow, xrow, lg):
+    n = sum(srow); xt = sum(xrow)
+    raw = [v / (xt or 1.0) for v in xrow]
+    shr = [(xrow[i] + CH_K * lg[i]) / (xt + CH_K) for i in range(3)]
+    return {'n': n, 'xg': [round(v, 2) for v in xrow],
+            'raw': [round(v, 3) for v in raw], 'share': [round(v, 3) for v in shr],
+            'xgTotal': round(xt, 2)}
+
+channels_teams = {}
+for code, short in code2short.items():
+    channels_teams[short] = {
+        'att': _team_block(_ch_att_s.get(code, [0, 0, 0]), _ch_att_x.get(code, [0.0, 0.0, 0.0]), _lg_att),
+        'def': _team_block(_ch_def_s.get(code, [0, 0, 0]), _ch_def_x.get(code, [0.0, 0.0, 0.0]), _lg_def),
+    }
+
+channels_players = {}
+for pid, ys in _ch_py.items():
+    n = len(ys)
+    if n < 2: continue
+    ym = sum(ys) / n
+    sd = (sum((y - ym) ** 2 for y in ys) / n) ** 0.5 if n > 1 else 0.0
+    meta = pid2meta.get(pid)
+    if not meta: continue
+    side = 'L' if (n >= 4 and ym < 45) else 'R' if (n >= 4 and ym > 55) else 'C'
+    channels_players[str(pid)] = {
+        'name': meta[0], 'team': code2short.get(meta[1], '?'),
+        'pos': {'Goalkeeper': 'GK', 'Defender': 'DEF', 'Midfielder': 'MID', 'Forward': 'FWD'}.get(meta[2], 'MID'),
+        'n': n, 'y': round(ym, 1), 'sd': round(sd, 1), 'side': side,
+        'conf': round(min(1.0, n / 10.0), 2),
+    }
+
+channels = {
+    'meta': {'gw_through': max([int(f.split('GW')[1].split(os.sep)[0]) for f in glob.glob(f'{BASE}/By Gameweek/GW*/shots.csv')] or [0]),
+             'shots': _ch_shots, 'dropped': _ch_dropped, 'k': CH_K,
+             'note': 'Real shot locations (attacking view, y 0-100). Channels L=y<40, C=40-60, R=>60. '
+                     'Team shares are xG-weighted and shrunk to the league profile (K=30 shots). '
+                     'Phase 5a: analysis-only, NOT yet in the xP spine (pending the Phase 8 A/B gate).'},
+    'league': {'att': [round(v, 3) for v in _lg_att], 'def': [round(v, 3) for v in _lg_def]},
+    'teams': channels_teams,
+    'players': channels_players,
+}
+dump('channels', channels)
+print(f'channels: {len(channels_teams)} teams, {len(channels_players)} players, {_ch_matched} shots matched, {_ch_dropped} dropped')
+if _slug_misses: print(f'CHANNELS WARNING — unmapped team slugs: {sorted(_slug_misses)}')
 print('DONE')

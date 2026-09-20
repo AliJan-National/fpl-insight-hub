@@ -17,6 +17,7 @@ const MANIFEST = [
   'src/models/minutes.js',
   'src/models/team-strength.js',
   'src/models/fixture-v2.js',
+  'src/models/channels.js',
   'src/models/projection.js',
   'src/validation/backtest.js',
   'src/validation/scorecard.js',

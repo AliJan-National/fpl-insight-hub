@@ -22,6 +22,7 @@ Tranche 2 added `src/models/minutes.js` (Phase 2 minutes engine, NOT in producti
 | 5b | `src/models/minutes.js` | NEW (Phase 2) | ~4,700 | minutesV2 ladder — **PRODUCTION SPINE since v45** (GW4 holdout A/B: Brier -35%, minutes MAE -54%); legacy survives as startProbLegacy/minutesOfLegacy |
 | 5c | `src/models/team-strength.js` | NEW (Phase 3) | ~5,700 | teamRatingsV2 + expectedGoals feed — built beside legacy, not yet in production |
 | 5d | `src/models/fixture-v2.js` | NEW (Phase 4) | ~4,500 | fixtureDifficultyV2 position-aware grades + posFixGrade bridge — beside legacy, not in production |
+| 5e | `src/models/channels.js` | NEW (Phase 5a, v49) | ~6,000 | channel model: pitch-zone attack/defence profiles + player lateral positions from real shot coordinates — BESIDE production (Phase 8 A/B gate pending) |
 | 4b | `src/decisions/freehit.js` | NEW (user feature) | ~11,000 | Free Hit Lab: one-GW squad optimizer for 3 GWs + grounded assistant — PRODUCTION (its own tab) |
 | 4c | `src/decisions/fh-audit.js` | NEW (user feature) | ~10,000 | Free Hit Audit: suggested-vs-actual-best per completed GW + learn panel — PRODUCTION (Free Hit tab) |
 | 4d | `src/decisions/reconcile.js` | NEW (user feature, v47) | ~5,000 | Cross-surface reconciliation: every Wildcard-vs-Free-Hit disagreement with a computed reason — PRODUCTION (both tabs + assistant) |

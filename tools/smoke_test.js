@@ -39,7 +39,12 @@ const elite = j('elite.json');
 A(elite && elite.gw && elite.meta && Number(elite.meta.latest_complete) === fm.current_gw,
   'elite.json is current: latest_complete ' + (elite && elite.meta && elite.meta.latest_complete) + ' == ' + fm.current_gw);
 
-for (const f of ['fplmeta.json', 'teams.json', 'ticker.json', 'league.json']) {
+const ch = j('channels.json');
+A(ch && ch.teams && Object.keys(ch.teams).length === 20, 'channels.json profiles all 20 teams');
+A(Object.values(ch.teams).every(t => Math.abs(t.att.share.reduce((a, b) => a + b, 0) - 1) < 0.01), 'channel shares sum to 1');
+A(ch.players && Object.keys(ch.players).length >= 100 && ch.meta.shots >= 500, 'channel model has real volume: ' + ch.meta.shots + ' shots, ' + Object.keys(ch.players).length + ' players');
+
+for (const f of ['fplmeta.json', 'teams.json', 'ticker.json', 'league.json', 'channels.json']) {
   A(!/NaN|undefined/.test(fs.readFileSync('api/' + f, 'utf8')), 'no NaN/undefined tokens in ' + f);
 }
 if (fails) { console.error('\nSMOKE FAILED — committing nothing.'); process.exit(1); }

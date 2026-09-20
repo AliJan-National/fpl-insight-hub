@@ -3,7 +3,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 let DATA = {};
 
 async function load() {
-  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker', 'teams', 'history', 'elite'];
+  const names = ['meta', 'league', 'results', 'players', 'radar', 'fixtures', 'news', 'captains', 'prices', 'fplmeta', 'ticker', 'teams', 'history', 'elite', 'channels'];
   const res = await Promise.all(names.map(n => fetch(`api/${n}.json`).then(r => r.json())));
   names.forEach((n, i) => DATA[n] = res[i]);
   renderAll();

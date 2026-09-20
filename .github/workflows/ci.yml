@@ -4,9 +4,6 @@ on:
   pull_request:
 jobs:
   test:
-    # automated data pushes carry their own non-blocking report inside the
-    # data-refresh workflow — skip the duplicate here to avoid double noise
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

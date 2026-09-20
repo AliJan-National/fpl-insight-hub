@@ -91,7 +91,7 @@ function renderFixtures() {
 
 function renderOsm() {
   const el = $('#osmWrap'); if (!el) return;
-  try { const h2 = osmCardHtml(); el.innerHTML = h2 || ''; } catch (e) { console.error('[osm]', e); el.innerHTML = ''; }
+  try { const h2 = osmCardHtml() + ((typeof channelCardHtml === 'function') ? channelCardHtml() : ''); el.innerHTML = h2 || ''; } catch (e) { console.error('[osm]', e); el.innerHTML = ''; }
 }
 
 function renderNews() {
@@ -388,6 +388,7 @@ function pairDecision(A, B, q0) {
       + ppRows(p)
       + distBar(p)
       + teamDefLine(p)
+      + ((typeof chanLine === 'function') ? chanLine(p) : '')
       + hbar(100 * t / maxT, p === lead ? 'var(--green)' : 'var(--amber)')
       + '</div>';
   };
@@ -498,6 +499,7 @@ function osmAsk(q) {
   return '';
 }
 
+const e2 = v => (Math.round(v * 100) / 100).toFixed(2);
 function askAI(q) {
   const Q = q.toLowerCase();
   const ctx = window.TEAMCTX;
@@ -507,6 +509,22 @@ function askAI(q) {
   const pl = findPlayer(q);
   // B9: single named player + fixture words -> their own scout report / schedule strip
   if (pl && /(fixture|schedule|run|next gw|upcoming)/.test(Q) && !/(sell|drop|bench|captain|armband|buy|bring|compare|versus|mini|league|rival|wildcard|chip)/.test(Q)) return scout(pl);
+  // 🧭 Phase 5a: channel/flank questions — grounded in the real shot-location model
+  if (/(which|what|should).{0,24}(wing|winger|flank|side)|rw or lw|lw or rw|(left|right) or (right|left) wing|which channel|what channel|channel (edge|mismatch|model|analysis|pick|does|is|should)|flank (edge|mismatch)|which side does/.test(Q)) {
+    const named = pl && chanPlayer(pl) && chanPlayer(pl).known ? pl : null;
+    if (named) {
+      const e = channelEdge(named, 0);
+      const cp = chanPlayer(named);
+      return `🧭 <b>${esc(named.name)}</b> is a <b>${cp.side === 'L' ? 'LEFT' : cp.side === 'R' ? 'RIGHT' : 'central'}-channel</b> player (avg shot y ${cp.y}, ${cp.n} shots).`
+        + (e ? ` Next GW vs <b>${esc(e.opp)}</b>: they concede ${Math.round(100 * e.share)}% of their xG from the ${e.side === 'L' ? 'left' : 'right'} channel — ${e.ratio.toFixed(2)}× the league rate.` : ' No material flank mismatch next GW (his channel meets an average defence).')
+        + `<br><span class="mrow">Phase 5a: real shot locations, not yet in the xP spine (A/B pending). Load the <b>Real Strength</b> tab for every team’s pitch map.</span>`;
+    }
+    const top = chanTopEdges(0, 5);
+    if (top.length) return `🧭 Biggest flank mismatches next GW (left/right-sided attackers vs defences that leak their channel):<br>`
+      + top.map(x => `• <b>${esc(x.p.name)}</b> (${x.p.team}, ${x.e.side === 'L' ? 'left' : 'right'}-sided) vs ${esc(x.e.opp)} — ${e2(x.e.ratio)}× league concession rate from his channel, ${x.xp} xP`).join('<br>')
+      + `<br><span class="mrow">A left-sided attacker exploits a defence leaking its LEFT channel (the defence’s right side). Phase 5a — analysis only until the Phase 8 A/B gate.</span>`;
+    return 'No material flank mismatches next GW — the channel model finds no ≥1.2× leak worth chasing this week.';
+  }
   // B9: position + price intent ("best DEF under 6m") answers with players, not team defences
   const ppPos = (/(?:^|[^a-z])(gk|goalkeeper|def|defender|mid|midfielder|fwd|forward|striker)s?(?:[^a-z]|$)/.exec(Q) || [])[1];
   const ppPrice = /under\s*£?(\d+(?:\.\d+)?)m?\b/.exec(Q);
