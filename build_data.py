@@ -2,7 +2,7 @@
 import pandas as pd, glob, json, os, re, csv
 
 BASE = 'fpl-core-insights/data/2026-2027'
-OUT = 'fpl_dashboard/api'
+OUT = 'api'
 os.makedirs(OUT, exist_ok=True)
 
 teams = pd.read_csv(f'{BASE}/teams.csv')
