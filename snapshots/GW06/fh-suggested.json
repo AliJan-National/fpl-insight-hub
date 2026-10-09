@@ -1,0 +1,176 @@
+{
+ "gw": 6,
+ "captured": "2026-10-09",
+ "budget": 100,
+ "fhScore": 102.2,
+ "formation": "4-4-2",
+ "captainId": 124,
+ "note": "FROZEN pre-deadline: the Free Hit squad our model suggested for GW6, computed from snapshots/GW06 data BEFORE any GW6 results existed. Judged by fh-audit against actual GW6 points.",
+ "squad": [
+  {
+   "id": 1,
+   "name": "Raya",
+   "pos": "GK",
+   "team": "ARS",
+   "cost": 6.1,
+   "xp": 4.9,
+   "opp": "LEE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 300,
+   "name": "Walton",
+   "pos": "GK",
+   "team": "IPS",
+   "cost": 4.4,
+   "xp": 1.1,
+   "opp": "FUL",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 229,
+   "name": "Tarkowski",
+   "pos": "DEF",
+   "team": "EVE",
+   "cost": 6.2,
+   "xp": 11.3,
+   "opp": "HUL",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 176,
+   "name": "Dasilva",
+   "pos": "DEF",
+   "team": "COV",
+   "cost": 4,
+   "xp": 8.1,
+   "opp": "NEW",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 176,
+   "name": "Dasilva",
+   "pos": "DEF",
+   "team": "COV",
+   "cost": 4,
+   "xp": 8.1,
+   "opp": "NEW",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 305,
+   "name": "Davis",
+   "pos": "DEF",
+   "team": "IPS",
+   "cost": 4,
+   "xp": 7.9,
+   "opp": "FUL",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 330,
+   "name": "Bogle",
+   "pos": "DEF",
+   "team": "LEE",
+   "cost": 4.6,
+   "xp": 7.1,
+   "opp": "ARS",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 124,
+   "name": "Groß",
+   "pos": "MID",
+   "team": "BHA",
+   "cost": 5.9,
+   "xp": 13.8,
+   "opp": "SUN",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 94,
+   "name": "Schade",
+   "pos": "MID",
+   "team": "BRE",
+   "cost": 6.2,
+   "xp": 10.5,
+   "opp": "AVL",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 286,
+   "name": "Belloumi",
+   "pos": "MID",
+   "team": "HUL",
+   "cost": 5.1,
+   "xp": 5.8,
+   "opp": "EVE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 41,
+   "name": "Buendía",
+   "pos": "MID",
+   "team": "AVL",
+   "cost": 5.9,
+   "xp": 5.7,
+   "opp": "BRE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 605,
+   "name": "Yalcouyé",
+   "pos": "MID",
+   "team": "BHA",
+   "cost": 4.5,
+   "xp": 2.3,
+   "opp": "SUN",
+   "ha": "A",
+   "starter": false
+  },
+  {
+   "id": 138,
+   "name": "Kostoulas",
+   "pos": "FWD",
+   "team": "BHA",
+   "cost": 5.6,
+   "xp": 7.2,
+   "opp": "SUN",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 411,
+   "name": "Haaland",
+   "pos": "FWD",
+   "team": "MCI",
+   "cost": 15.6,
+   "xp": 6.1,
+   "opp": "LIV",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 194,
+   "name": "Thomas-Asante",
+   "pos": "FWD",
+   "team": "COV",
+   "cost": 5,
+   "xp": 0.9,
+   "opp": "NEW",
+   "ha": "H",
+   "starter": false
+  }
+ ]
+}
