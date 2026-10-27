@@ -1,0 +1,176 @@
+{
+ "gw": 9,
+ "captured": "2026-10-27",
+ "budget": 100,
+ "fhScore": 80.2,
+ "formation": "4-4-2",
+ "captainId": 411,
+ "note": "FROZEN pre-deadline: the Free Hit squad our model suggested for GW9, computed from snapshots/GW09 data BEFORE any GW9 results existed. Judged by fh-audit against actual GW9 points.",
+ "squad": [
+  {
+   "id": 1,
+   "name": "Raya",
+   "pos": "GK",
+   "team": "ARS",
+   "cost": 6.2,
+   "xp": 4.3,
+   "opp": "LIV",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 496,
+   "name": "Kinsky",
+   "pos": "GK",
+   "team": "TOT",
+   "cost": 4.4,
+   "xp": 4.1,
+   "opp": "CRY",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 4,
+   "name": "Gabriel",
+   "pos": "DEF",
+   "team": "ARS",
+   "cost": 7.9,
+   "xp": 8.7,
+   "opp": "LIV",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 60,
+   "name": "Hill",
+   "pos": "DEF",
+   "team": "BOU",
+   "cost": 5.5,
+   "xp": 7.3,
+   "opp": "LEE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 31,
+   "name": "Konsa",
+   "pos": "DEF",
+   "team": "ARS",
+   "cost": 4.7,
+   "xp": 7.2,
+   "opp": "LIV",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 566,
+   "name": "Silva",
+   "pos": "DEF",
+   "team": "BOU",
+   "cost": 5,
+   "xp": 5.7,
+   "opp": "LEE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 175,
+   "name": "van Ewijk",
+   "pos": "DEF",
+   "team": "COV",
+   "cost": 3.9,
+   "xp": 2.4,
+   "opp": "SUN",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 68,
+   "name": "Tavernier",
+   "pos": "MID",
+   "team": "BOU",
+   "cost": 6.4,
+   "xp": 6.8,
+   "opp": "LEE",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 156,
+   "name": "Neto",
+   "pos": "MID",
+   "team": "CHE",
+   "cost": 6.6,
+   "xp": 6.2,
+   "opp": "MUN",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 455,
+   "name": "Tonali",
+   "pos": "MID",
+   "team": "TOT",
+   "cost": 5.3,
+   "xp": 5.1,
+   "opp": "CRY",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 427,
+   "name": "Mbeumo",
+   "pos": "MID",
+   "team": "MUN",
+   "cost": 7.9,
+   "xp": 5,
+   "opp": "CHE",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 290,
+   "name": "Slater",
+   "pos": "MID",
+   "team": "HUL",
+   "cost": 4.5,
+   "xp": 1.6,
+   "opp": "IPS",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 411,
+   "name": "Haaland",
+   "pos": "FWD",
+   "team": "MCI",
+   "cost": 15.7,
+   "xp": 8.9,
+   "opp": "BHA",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 166,
+   "name": "N.Jackson",
+   "pos": "FWD",
+   "team": "AVL",
+   "cost": 6.7,
+   "xp": 6.2,
+   "opp": "FUL",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 194,
+   "name": "Thomas-Asante",
+   "pos": "FWD",
+   "team": "COV",
+   "cost": 5,
+   "xp": 2.5,
+   "opp": "SUN",
+   "ha": "H",
+   "starter": false
+  }
+ ]
+}
