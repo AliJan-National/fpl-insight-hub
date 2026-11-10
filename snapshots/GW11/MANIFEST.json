@@ -1,0 +1,97 @@
+{
+ "gw": 11,
+ "captured": "2026-11-10",
+ "note": "pre-deadline state frozen by the automated post-GW10 refresh — the truth the GW11 scorecard will be judged against",
+ "files": {
+  "captains.json": {
+   "bytes": 2820,
+   "sha256": "80c1cad19ae298ed",
+   "ok": true
+  },
+  "channels.json": {
+   "bytes": 32356,
+   "sha256": "d6b98e70b2705dfd",
+   "ok": true
+  },
+  "elite.json": {
+   "bytes": 641865,
+   "sha256": "a12227840895e062",
+   "ok": true
+  },
+  "fh-suggested.json": {
+   "bytes": 2722,
+   "sha256": "123b2a54206a59dd",
+   "ok": true
+  },
+  "fixtures.json": {
+   "bytes": 2368,
+   "sha256": "00470794776f7678",
+   "ok": true
+  },
+  "fplids.json": {
+   "bytes": 53933,
+   "sha256": "eedd690af9a23204",
+   "ok": true
+  },
+  "fplmeta.json": {
+   "bytes": 11184,
+   "sha256": "61f8eb0b8b1b40cd",
+   "ok": true
+  },
+  "history.json": {
+   "bytes": 170641,
+   "sha256": "e3c20501fa281db3",
+   "ok": true
+  },
+  "league.json": {
+   "bytes": 1844,
+   "sha256": "2c022e00fc8cbcd8",
+   "ok": true
+  },
+  "meta.json": {
+   "bytes": 235,
+   "sha256": "86b92293f40ca286",
+   "ok": true
+  },
+  "news.json": {
+   "bytes": 29381,
+   "sha256": "b6d5c4e6507edb2d",
+   "ok": true
+  },
+  "players.json": {
+   "bytes": 390941,
+   "sha256": "bbbfb1c236528cd4",
+   "ok": true
+  },
+  "predictions.json": {
+   "bytes": 155613,
+   "sha256": "a2c402eef1abaec6",
+   "ok": true
+  },
+  "prices.json": {
+   "bytes": 4176,
+   "sha256": "ae1717c89943483d",
+   "ok": true
+  },
+  "radar.json": {
+   "bytes": 21380,
+   "sha256": "5f414bc852278838",
+   "ok": true
+  },
+  "results.json": {
+   "bytes": 8994,
+   "sha256": "6ab3a359500f5f9e",
+   "ok": true
+  },
+  "teams.json": {
+   "bytes": 3302,
+   "sha256": "a920a2e585f09d59",
+   "ok": true
+  },
+  "ticker.json": {
+   "bytes": 15570,
+   "sha256": "492dcc7c56fe1b24",
+   "ok": true
+  }
+ }
+}
