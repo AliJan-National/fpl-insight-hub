@@ -1,0 +1,176 @@
+{
+ "gw": 12,
+ "captured": "2026-11-24",
+ "budget": 100,
+ "fhScore": 82.8,
+ "formation": "4-4-2",
+ "captainId": 295,
+ "note": "FROZEN pre-deadline: the Free Hit squad our model suggested for GW12, computed from snapshots/GW12 data BEFORE any GW12 results existed. Judged by fh-audit against actual GW12 points.",
+ "squad": [
+  {
+   "id": 385,
+   "name": "Trafford",
+   "pos": "GK",
+   "team": "LEE",
+   "cost": 5.1,
+   "xp": 4.7,
+   "opp": "COV",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 496,
+   "name": "Kinsky",
+   "pos": "GK",
+   "team": "TOT",
+   "cost": 4.4,
+   "xp": 3.9,
+   "opp": "SUN",
+   "ha": "A",
+   "starter": false
+  },
+  {
+   "id": 112,
+   "name": "Van Hecke",
+   "pos": "DEF",
+   "team": "TOT",
+   "cost": 5.2,
+   "xp": 8,
+   "opp": "SUN",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 60,
+   "name": "Hill",
+   "pos": "DEF",
+   "team": "BOU",
+   "cost": 5.6,
+   "xp": 7.6,
+   "opp": "FUL",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 334,
+   "name": "Muharemović",
+   "pos": "DEF",
+   "team": "LEE",
+   "cost": 5.1,
+   "xp": 6.8,
+   "opp": "COV",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 504,
+   "name": "Vuskovic",
+   "pos": "DEF",
+   "team": "BHA",
+   "cost": 5.3,
+   "xp": 6.2,
+   "opp": "NEW",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 539,
+   "name": "O'Nien",
+   "pos": "DEF",
+   "team": "SUN",
+   "cost": 3.9,
+   "xp": 3.6,
+   "opp": "TOT",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 366,
+   "name": "Wirtz",
+   "pos": "MID",
+   "team": "LIV",
+   "cost": 7.4,
+   "xp": 7.8,
+   "opp": "EVE",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 542,
+   "name": "E.Le Fée",
+   "pos": "MID",
+   "team": "SUN",
+   "cost": 5.7,
+   "xp": 5.7,
+   "opp": "TOT",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 15,
+   "name": "Ødegaard",
+   "pos": "MID",
+   "team": "ARS",
+   "cost": 6.7,
+   "xp": 5.6,
+   "opp": "MCI",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 183,
+   "name": "Rudoni",
+   "pos": "MID",
+   "team": "COV",
+   "cost": 5,
+   "xp": 5.4,
+   "opp": "LEE",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 613,
+   "name": "Ahoka",
+   "pos": "MID",
+   "team": "SUN",
+   "cost": 4.4,
+   "xp": 0.6,
+   "opp": "TOT",
+   "ha": "H",
+   "starter": false
+  },
+  {
+   "id": 295,
+   "name": "McBurnie",
+   "pos": "FWD",
+   "team": "HUL",
+   "cost": 5.5,
+   "xp": 8.4,
+   "opp": "CRY",
+   "ha": "A",
+   "starter": true
+  },
+  {
+   "id": 249,
+   "name": "Barry",
+   "pos": "FWD",
+   "team": "EVE",
+   "cost": 5.7,
+   "xp": 8.3,
+   "opp": "LIV",
+   "ha": "H",
+   "starter": true
+  },
+  {
+   "id": 194,
+   "name": "Thomas-Asante",
+   "pos": "FWD",
+   "team": "COV",
+   "cost": 5,
+   "xp": 0.6,
+   "opp": "LEE",
+   "ha": "A",
+   "starter": false
+  }
+ ]
+}
